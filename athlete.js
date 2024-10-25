@@ -30,20 +30,19 @@ export class Athlete {
         this.armature = this.scene.children[0];
         this.body = this.armature.children[3];
 
-        let color1 = new THREE.Color( 1,1,1 ); //default white shirt
-        let color2 = new THREE.Color( 0,0,0 ); //default black shorts
+        //default random colors
+        let color1 = new THREE.Color( Math.random(),Math.random(),Math.random() );
+        let color2 = new THREE.Color( Math.random(),Math.random(),Math.random() );
         
-        if (athleteInfo) {
-            if (athleteInfo.color1) {
-                color1.set(athleteInfo.color1.r, athleteInfo.color1.g, athleteInfo.color1.b);
-            }
-            if (athleteInfo.color2) {
-                color2.set(athleteInfo.color2.r, athleteInfo.color2.g, athleteInfo.color2.b);
-            }
-
-            this.time = athleteInfo.time;
-            this.lane = athleteInfo.lane;
-        }
+        //replace with known colors
+        // if (athleteInfo) {
+        //     if (athleteInfo.color1) {
+        //         color1.set(athleteInfo.color1.r, athleteInfo.color1.g, athleteInfo.color1.b);
+        //     }
+        //     if (athleteInfo.color2) {
+        //         color2.set(athleteInfo.color2.r, athleteInfo.color2.g, athleteInfo.color2.b);
+        //     }
+        // }
         this.matCol1 = new THREE.MeshPhongMaterial({ color: color1 });
         this.matCol1.castShadow = true;
         this.matCol1.receiveShadow = true;
@@ -83,16 +82,10 @@ export class Athlete {
             theta: 0,
         }
         this._dist = 0;
-        this.offset = 0;
-        this.soffset = 0;
-        
-        //TODO: morph targets?
 
-        // console.log(this);
-        // this.actions.sprint.setEffectiveWeight(1);
-        // this.actions.sprint.setEffectiveTimeScale(1);
-        // this.actions.sprint.play();
-        // this.actions.sprint.time = Math.random() * this.actions.sprint.getClip().duration;
+        console.log('ATHLETE', this, this.actions.sprint.time);
+
+        //TODO: morph targets for gender
     }
 
     get dist() {
@@ -113,14 +106,16 @@ export class Athlete {
         this._posTheta = posTheta;
     }
 
+
     pose(raceTime, delta) {
         let strideMult = mapRange(this.random, 0,1, 0.9,1.1);
         for (let k in this.actions) {
             this.actions[k].setEffectiveWeight(0);
         }
-
+        
         if (this.dist < 0.2) {
             let f = mapRange(this.dist, 0,0.2, 0,1);
+            console.log(f);
             this.actions.set.setEffectiveWeight(1 - f);
             this.actions.lowsprint.setEffectiveWeight(f);
             
@@ -141,7 +136,7 @@ export class Athlete {
                 this.actions.sprint.getClip().duration
             );
         }
-        else if (this.dist < this.race.totalDist) {
+        else if (this.dist < this.race.raceDistance) {
             this.actions.sprint.setEffectiveWeight(1);
             this.actions.sprint.time = pmod(
                 this.actions.sprint.time + (this.dist - this.pdist) * this.actions.sprint.getClip().duration/5.8 * strideMult,
@@ -150,7 +145,7 @@ export class Athlete {
         }
         else {
             
-            let f = mapRange(this.dist, this.race.totalDist,this.race.totalDist+10, 1,0);
+            let f = mapRange(this.dist, this.race.raceDistance,this.race.raceDistance+10, 1,0);
             this.actions.sprint.setEffectiveWeight(f);
             this.actions.sprint.time = pmod(
                 this.actions.sprint.time + 
@@ -162,7 +157,61 @@ export class Athlete {
 
         this.mixer.update(0);
         let {p,theta} = this.posTheta;
-        this.armature.position.set(p.x + this.soffset * Math.cos(theta+Math.PI), p.y + this.soffset * Math.sin(theta+Math.PI),p.z);
+        this.armature.position.set(p.x, p.y, p.z);
         this.armature.rotation.set(0,0,theta);
     }
+
+    //uses this.posTheta, this.dist, this.pdist, this.soffset, this.race.totalDist
+    // oldpose(raceTime, delta) {
+    //     let strideMult = mapRange(this.random, 0,1, 0.9,1.1);
+    //     for (let k in this.actions) {
+    //         this.actions[k].setEffectiveWeight(0);
+    //     }
+
+    //     if (this.dist < 0.2) {
+    //         let f = mapRange(this.dist, 0,0.2, 0,1);
+    //         this.actions.set.setEffectiveWeight(1 - f);
+    //         this.actions.lowsprint.setEffectiveWeight(f);
+            
+    //     }
+    //     else if (this.dist < 20) {
+    //         let f = mapRange(this.dist, 0.2,20, 0,1);
+    //         let distPerLoop = mapRange(f, 0,1, 2.5,5.8);
+    //         let distTraveled = this.dist-this.pdist;
+    //         let loop = distTraveled / distPerLoop * strideMult;
+    //         this.actions.lowsprint.setEffectiveWeight(1 - f);
+    //         this.actions.lowsprint.time = pmod(
+    //             this.actions.lowsprint.time + this.actions.lowsprint.getClip().duration * loop,
+    //             this.actions.lowsprint.getClip().duration
+    //         );
+    //         this.actions.sprint.setEffectiveWeight(f);
+    //         this.actions.sprint.time = pmod(
+    //             this.actions.lowsprint.time * this.actions.sprint.getClip().duration/this.actions.lowsprint.getClip().duration,
+    //             this.actions.sprint.getClip().duration
+    //         );
+    //     }
+    //     else if (this.dist < this.race.raceDistance) {
+    //         this.actions.sprint.setEffectiveWeight(1);
+    //         this.actions.sprint.time = pmod(
+    //             this.actions.sprint.time + (this.dist - this.pdist) * this.actions.sprint.getClip().duration/5.8 * strideMult,
+    //             this.actions.sprint.getClip().duration
+    //         );
+    //     }
+    //     else {
+            
+    //         let f = mapRange(this.dist, this.race.raceDistance,this.race.raceDistance+10, 1,0);
+    //         this.actions.sprint.setEffectiveWeight(f);
+    //         this.actions.sprint.time = pmod(
+    //             this.actions.sprint.time + 
+    //             (this.dist - this.pdist) * this.actions.sprint.getClip().duration/5.8 * strideMult
+    //             / (0.5 + 0.5*f), //correction factor accounting partially for effective weight of sprint action
+    //             this.actions.sprint.getClip().duration
+    //         );
+    //     }
+
+    //     this.mixer.update(0);
+    //     let {p,theta} = this.posTheta;
+    //     this.armature.position.set(p.x + this.soffset * Math.cos(theta+Math.PI), p.y + this.soffset * Math.sin(theta+Math.PI),p.z);
+    //     this.armature.rotation.set(0,0,theta);
+    // }
 }

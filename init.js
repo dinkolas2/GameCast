@@ -1,7 +1,9 @@
 import * as THREE from 'three';
-//import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+//debug view
+import { ShadowMapViewer } from 'three/addons/utils/ShadowMapViewer.js';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 
-//import { ShadowMapViewer } from 'three/addons/utils/ShadowMapViewer.js';
+
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
@@ -15,11 +17,13 @@ import { getTrackPos100,getTrackPos200,getTrackPos400,getTrackPos800,getTrackPos
 import { mapRange } from './util.js';
 
 import { io } from "https://cdn.socket.io/4.7.5/socket.io.esm.min.js";
-
-const socket = io('http://localhost:8082');
-socket.on('tracking', (msg) => {
-    console.log(msg);
-});
+//loading
+export const LOADINGSTATES = {
+    INIT: 0,
+    AWAITING: 1,
+    PLAYING: 2,
+}
+export const PRELOAD = 3; //seconds of data to wait for before starting animation
 
 //rendering
 export let camera, renderer;
@@ -33,7 +37,7 @@ export let sunLight;
 export let envLight;
 
 //misc
-//export let controls;
+export let controls;
 export const helpers = [];
 export let shadowViewer;
 
@@ -44,20 +48,21 @@ export let matSkin;
 
 //loaders
 const gltfLoader = new GLTFLoader();
-
-export let loaded = 0;
-export const fullyLoaded = 3;
+let athleteGLTF;
 
 //race
 export let race;
 
-function init() {
-    loaded = 0;
+//debug
+export let DEBUG = false;
+
+async function init() {
 
     initRender();
     initLights();
     initTrack();
-    initRace();
+    athleteGLTF = await initAthleteModel();
+    initIO();
 
     animate();
 }
@@ -80,9 +85,9 @@ function initRender() {
     camera.position.set( 10,5,5 );
     camera.lookAt( 0,0,0 );
 
-    // controls = new OrbitControls( camera, renderer.domElement );
-    // controls.target.set( 0, 2, 0 );
-    // controls.update();
+    controls = new OrbitControls( camera, renderer.domElement );
+    controls.target.set( 0, 2, 0 );
+    controls.update();
 
     window.addEventListener( 'resize', onWindowResize );
 
@@ -113,20 +118,24 @@ function initLights() {
     scene.add(sunLight);
 
     let h = new THREE.DirectionalLightHelper(sunLight);
-    // scene.add(h);
+    if (DEBUG) {
+        scene.add(h);
+    }
     helpers.push(h);
     h = new THREE.CameraHelper( sunLight.shadow.camera );
-    // scene.add(h);
+    if (DEBUG) {
+        scene.add(h);
 
-    // shadowViewer = new ShadowMapViewer(sunLight);
-    // shadowViewer.position.x = 10;
-    // shadowViewer.position.y = 10;
-    // shadowViewer.size.width = 200;
-    // shadowViewer.size.width = 200;
-    // shadowViewer.update();
-    // shadowViewer.updateForWindowResize();
+        shadowViewer = new ShadowMapViewer(sunLight);
+        shadowViewer.position.x = 10;
+        shadowViewer.position.y = 10;
+        shadowViewer.size.width = 200;
+        shadowViewer.size.width = 200;
+        shadowViewer.update();
+        shadowViewer.updateForWindowResize();
+    }
 
-    // console.log(sunLight);
+    
 }
 
 function initTrack() {
@@ -140,7 +149,6 @@ function initTrack() {
         child.receiveShadow = true;
         child.castShadow = false;
         scene.add(child);
-        loaded++;
     });
     gltfLoader.load('./models/trackGround.glb', (gltf) => {
         let child = gltf.scene.children[0];
@@ -151,188 +159,185 @@ function initTrack() {
         child.receiveShadow = true;
         child.castShadow = false;
         scene.add(child);
-        loaded++;
     });
 }
 
-function initRace() {
+async function initAthleteModel() {
+    const load = (fileName) => new Promise((resolve) => gltfLoader.load(fileName, resolve));
+
+    matSkin = new THREE.MeshPhongMaterial({ color: 0x2B2F40 });
+
+    return load('./models/athlete2.glb').then((gltf) => gltf);
+}
+
+let globalTOffset;
+function initIO() {
+    //receive race data from server
+    const socket = io('http://localhost:8082');
+    socket.on('tracking', (msg) => {
+        console.log('io input', msg);
+
+        if (race === undefined) {
+            initRace(msg);
+        }
+        else {
+            if (globalTOffset === undefined && race.raceTime !== 0) {
+                globalTOffset = msg.raceTime - msg.globalTime;
+                console.log('GLOBALTOFFSET', globalTOffset);
+            }
+            if (msg.raceTime === msg.pRaceTime && msg.raceTime > 0 && globalTOffset !== undefined) {
+                msg.raceTime = msg.globalTime + globalTOffset;
+            }
+            updateRace(msg);
+        }
+    });
+}
+
+function initRace(msg) {
     //race basics
     race = {
-        state: STATES.MARK,
-        athletes: [],
+        loadingState: LOADINGSTATES.INIT,
+        eventName: msg.eventName,
+        raceDistance: msg.raceDistance,
+        minTime: msg.raceTime,
+        maxTime: msg.raceTime,
+        time: msg.raceTime,
+        msgs: [msg],
+        athletes: {},
     };
 
-    //Import athlete model, clone it for every athlete in the race
-    matSkin = new THREE.MeshPhongMaterial({ color: 0x2B2F40 });
-    //objects
-    //import athlete model, clone it for each athlete, 
-    //apply unique material to each one
-    gltfLoader.load('./models/athlete2.glb', (gltf) => {
-        console.log(gltf);
-        for (let athleteResult of results.athletes) {
-            let c = SkeletonUtils.clone(gltf.scene);
-            let athleteModel = new Athlete(c, gltf.animations, athleteResult);
-            athleteModel.race = race;
+    for (let id in msg.athletes) {
+        let athleteResult = msg.athletes[id];
+        let c = SkeletonUtils.clone(athleteGLTF.scene);
+        let athleteModel = new Athlete(c, athleteGLTF.animations, athleteResult);
+        athleteModel.race = race;
 
-            let athlete = {
-                athleteModel,
-                lane: athleteResult.lane,
-                reactionTime: athleteResult.reactionTime,
-                splits: athleteResult.splits,
-                time: athleteResult.time,
-            };
-            race.athletes.push(athlete);
-        }
-        loaded++;
-    });
-
-    if (results.race === '100m') {
-        race.totalDist = 100;
-        race.f = getTrackPos100;
-        
+        let athlete = {
+            athleteModel,
+            lane: athleteResult.lane,
+        };
+        race.athletes[id] = athlete;
     }
-    else if (results.race === '200m') {
-        race.totalDist = 200;
+
+    if (race.eventName.includes('100')) {
+        race.f = getTrackPos100;
+    }
+    else if (race.eventName.includes('200')) {
         race.f = getTrackPos200;
     }
-    else if (results.race === '400m') {
-        race.totalDist = 400;
+    else if (race.eventName.includes('400')) {
         race.f = getTrackPos400;
     }
-    else if (results.race === '800m') {
-        race.totalDist = 800;
+    else if (race.eventName.includes('800')) {
         race.f = getTrackPos800;
     }
-    else if (results.race === '1500m') {
-        race.totalDist = 1500;
+    else if (race.eventName.includes('1500')) {
         race.f = getTrackPos1500;
     }
 
-    if (results.race === '100m' || results.race === '200m' || results.race === '400m') {
-        race.setTime = (raceTime, delta) => {
-            //sort first place first, second place second, etc
-            race.athletes.sort((a,b) => b.athleteModel.dist - a.athleteModel.dist);
-            for (let athlete of race.athletes) {
+    if (race.eventName.includes('100') || race.eventName.includes('200') || race.eventName.includes('400')) {
+        //requires that time is in range [race.minTime, race.maxTime]
+        race.setTime = (time) => {
+            //TODO: binary search by msg.time, or even better search out from previous index
+            //find relevant msgs, interpolate them to create msg at race.time
+            
+            let msg = interpolateMsgs(time);
+
+            //Set dist, posTheta
+            for (let id in race.athletes) {
+                let athlete = race.athletes[id];
                 let athleteModel = athlete.athleteModel;
-                let dist;
+                let amsg = msg.athletes[id];
 
-                if (raceTime < athlete.reactionTime) {
-                    dist = 0;
-                }
-                else if (raceTime < athlete.time) {
-                    if (raceTime < athlete.splits[0].time) {
-                        dist = mapRange(raceTime, athlete.reactionTime,athlete.splits[0].time, 0,athlete.splits[0].dist);
-                    }
-                    else {
-                        for (let i = 0; i < athlete.splits.length-1; i++) {
-                            let split0 = athlete.splits[i];
-                            let split1 = athlete.splits[i+1];
-                            if (split0.time <= raceTime && raceTime <= split1.time) {
-                                dist = mapRange(raceTime, split0.time,split1.time, split0.dist,split1.dist);
-                            }
-                        }
-                    }
-                    
-                    if (dist === undefined) {
-                        dist = mapRange(raceTime, athlete.splits[athlete.splits.length - 1].time,athlete.time, athlete.splits[athlete.splits.length - 1].dist,race.totalDist);
-                    }
-                }
-                else {
-                    dist = race.totalDist + 10 - 10/(1 + raceTime - athlete.time);
-                }
-                let posTheta = race.f(athlete.lane, dist);
-                athleteModel.dist = dist;
-                athleteModel.posTheta = posTheta;
+                athleteModel.dist = amsg.pathDistance;
+                athleteModel.posTheta = race.f(athlete.lane, amsg.pathDistance); //TODO: before and after race use x,y data
+                athleteModel.pose();
+            }
 
-                athleteModel.pose(raceTime, delta);
+            race.time = time;
+        }
+    }
+    else if (race.eventName.includes('800') || race.eventName.includes('1500') || race.eventName.includes('3000')) {
+        //requires that time is in range [race.minTime, race.maxTime]
+        race.setTime = (time) => {
+            //TODO: binary search by msg.time, or even better search out from previous index
+            //find relevant msgs, interpolate them to create msg at race.time
+            
+            
+            let msg = interpolateMsgs(time);
+
+            //Set dist, posTheta
+            for (let id in race.athletes) {
+                let athlete = race.athletes[id];
+                let athleteModel = athlete.athleteModel;
+                let amsg = msg.athletes[id];
+
+                athleteModel.dist = amsg.pathDistance;
+                let posTheta = race.f(athlete.lane, amsg.pathDistance);
+                athleteModel.posTheta = {
+                    p: trackDataToGameTrack(amsg.x, amsg.y),
+                    theta: posTheta.theta
+                };
+                //race.f(athlete.lane, amsg.pathDistance); //TODO: before and after race use x,y data
+                athleteModel.pose();
+            }
+
+            race.time = time;
+        }
+    }
+}
+
+const centerX = -39.3447;
+const centerY = -42.2861;
+
+function trackDataToGameTrack(x,y) {
+    return new THREE.Vector3(
+        (y - 2*39.3447 + 1) * 1.08,
+        -x - 2*42.2861,
+        0
+    );
+}
+
+function interpolateMsgs(time) {
+    let msg;
+    for (let i = 0; i < race.msgs.length - 1; i++) {
+        let msg0 = race.msgs[i];
+        if (time === msg0.raceTime) {
+            msg = msg0;
+            break;
+        }
+        else if (msg0.raceTime < time) {
+            let msg1 = race.msgs[i+1];
+            if (time < msg1.raceTime) {
+                let f = mapRange(time, msg0.raceTime,msg1.raceTime, 0,1);
+                msg = {
+                    fake: true,
+                    athletes: {},
+                }
+                for (let id in msg0.athletes) {
+                    let a0 = msg0.athletes[id];
+                    let a1 = msg1.athletes[id];
+                    msg.athletes[id] = {
+                        pathDistance: mapRange(f, 0,1, a0.pathDistance, a1.pathDistance),
+                        x: mapRange(f, 0,1, a0.x, a1.x),
+                        y: mapRange(f, 0,1, a0.y, a1.y),
+                    };
+                }
+                break;
+                //TODO: assign ranks by sorting by pathDistance
             }
         }
     }
-    else if (results.race === '800m' || results.race === '1500m') {
-        race.setTime = (raceTime, delta) => {
-            for (let athlete of race.athletes) {
-                let athleteModel = athlete.athleteModel;
-                let dist;
-
-                if (raceTime < athlete.reactionTime) {
-                    dist = 0;
-                }
-                else if (raceTime < athlete.time) {
-                    if (raceTime < athlete.splits[0].time) {
-                        dist = mapRange(raceTime, athlete.reactionTime,athlete.splits[0].time, 0,athlete.splits[0].dist);
-                    }
-                    else {
-                        for (let i = 0; i < athlete.splits.length-1; i++) {
-                            let split0 = athlete.splits[i];
-                            let split1 = athlete.splits[i+1];
-                            if (split0.time <= raceTime && raceTime <= split1.time) {
-                                dist = mapRange(raceTime, split0.time,split1.time, split0.dist,split1.dist);
-                            }
-                        }
-                    }
-                    
-                    if (dist === undefined) {
-                        dist = mapRange(raceTime, athlete.splits[athlete.splits.length - 1].time,athlete.time, athlete.splits[athlete.splits.length - 1].dist,race.totalDist);
-                    }
-                }
-                else {
-                    dist = race.totalDist + 10 - 10/(1 + raceTime - athlete.time);
-                }
-                
-                athleteModel.dist = dist;
-            }
-            
-            //initialize offset based on order, pass on the outside
-            //sort first place first, second place second, etc
-            race.athletes.sort((a,b) => b.athleteModel.dist - a.athleteModel.dist);
-            for (let i = 0; i < race.athletes.length; i++) {
-                let a = race.athletes[i].athleteModel;
-                a.offset += i*0.01;
-                let posTheta = race.f(race.athletes[i].lane, a.dist);
-                a.posTheta = posTheta;
-                let {p, theta} = posTheta;
-                a.x = p.x + a.offset * Math.cos(theta+Math.PI);
-                a.y = p.y + a.offset * Math.sin(theta+Math.PI);
-            }
-            //physics sim to refine offsets
-            for (let i = 0; i < 20; i++) {
-                for (let i = 0; i < race.athletes.length; i++) {
-                    let a = race.athletes[i].athleteModel;
-                    for (let j = 0; j < i; j++) {
-                        let b = race.athletes[j].athleteModel;
-                        let d = Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2);
-                        const minD = 0.75;
-                        if (d < minD) {
-                            let dd = 2*mapRange(1/(0.01+d), 100,1/(minD + 0.01), minD,0);
-                            if (a.offset < b.offset) {
-                                a.offset -= dd;
-                                b.offset += dd;
-                            }
-                            else {
-                                a.offset += dd;
-                                b.offset -= dd;
-                            }
-                        }
-                    }
-                }
-                for (let i = 0; i < race.athletes.length; i++) {
-                    let a = race.athletes[i].athleteModel;
-                    a.offset = Math.max(0, a.offset);
-                    a.offset *= 0.99;
-                    let {p, theta} = a.posTheta;
-                    a.x = p.x + a.offset * Math.cos(theta+Math.PI);
-                    a.y = p.y + a.offset * Math.sin(theta+Math.PI);
-                }
-            }
-            
-
-            for (let athlete of race.athletes) {
-                let a = athlete.athleteModel;
-                a.soffset = 0.9*a.soffset + 0.1*a.offset;
-                a.pose(raceTime, delta);
-            }
-        }
+    if (msg === undefined) {
+        msg = race.msgs[race.msgs.length - 1];
     }
+    return msg;
+}
+
+function updateRace(msg) {
+    race.msgs.push(msg); //TODO: insert into list in case msgs come out of order
+    race.minTime = Math.min(race.minTime, msg.raceTime);
+    race.maxTime = Math.max(race.maxTime, msg.raceTime);
 }
 
 init();

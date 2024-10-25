@@ -89,5 +89,27 @@ for (let lane = 1; lane <= 9; lane++) {
     results800.athletes.push(athlete);
 }
 
+const results1500 = 
+{
+    race: "1500m",
+    athletes: [],
+};
+for (let lane = 1; lane <= 9; lane++) {
+    let athlete = {
+        time: mapRange(Math.random(), 0,1, 207, 215), 
+        color1: {r: Math.random(), g: Math.random(), b: Math.random()}, 
+        color2: {r: Math.random(), g: Math.random(), b: Math.random()}, 
+        reactionTime: mapRange(Math.random(), 0,1, 0.1,0.18),
+        lane,
+        splits: [],
+    };
+    for (let time = 5; time < athlete.time - 5; time += 5) {
+        let dist = mapRange(time, 0,athlete.time, 0,1500) + mapRange(Math.random(), 0,1, -5,5);
+        athlete.splits.push({dist, time});
+    }
+
+    results1500.athletes.push(athlete);
+}
+
 export const results = results800;
 console.log('results', results);

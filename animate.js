@@ -1,50 +1,67 @@
-import {race, renderer, scene, camera, sunLight, clock, loaded, fullyLoaded, helpers} from './init.js';
-
-import { mapRange, mapRangeClamp } from './util.js';
-
-import { STATES } from './trackUtil.js';
+import {race, renderer, scene, camera, sunLight, clock, helpers, LOADINGSTATES, PRELOAD, controls} from './init.js';
 
 //import * as THREE from 'three';
-
-let seg = -1;
-
-let raceState = STATES.MARK;
-let raceTime = 0;
 
 export function animate() {
     requestAnimationFrame(animate);
 
     const delta = clock.getDelta();
-    const t = clock.elapsedTime;
 
-    if (loaded < fullyLoaded) {
-        //wait for all assets to load and initialize
-        return;
-    }
+    if (race) {
+        if (race.loadingState === LOADINGSTATES.INIT) {
+            race.setTime(race.time);
+            if (race.maxTime >= race.time + PRELOAD) {
+                race.loadingState = LOADINGSTATES.PLAYING;
+            }
+            else {
+                race.loadingState = LOADINGSTATES.AWAITING;
+            }
+        }
+        else if (race.loadingState === LOADINGSTATES.AWAITING) {
+            if (race.maxTime >= race.time + delta + PRELOAD) {
+                race.loadingState = LOADINGSTATES.PLAYING;
+                race.setTime(race.time + delta);
+            }
+        }
+        else if (race.loadingState === LOADINGSTATES.PLAYING) {
+            if (race.maxTime >= race.time + delta) {
+                race.setTime(race.time + delta);
+            }
+            else {
+                race.loadingState = LOADINGSTATES.AWAITING;
+            }
+        }
+        
+        //set camera
+        let sumX = 0;
+        let sumY = 0;
+        let count = 0;
+        for (let id in race.athletes) {
+            sumX += race.athletes[id].athleteModel.posTheta.p.x;
+            sumY += race.athletes[id].athleteModel.posTheta.p.y;
+            count++;
+        }
 
-    race.setTime(t-2);
+        sumX = sumX / count;
+        sumY = sumY / count;
     
-    let sumDist = 0;
-    let topN = Math.min(race.athletes.length, 4);
-    for (let i = 0; i < topN; i++) {
-        let athlete = race.athletes[i];
-        let dist = athlete.athleteModel.dist;
-        sumDist += dist;
-    }
-
-    let {p, theta} = race.f(4.5, sumDist/topN);
-
-    camera.position.set(p.x + 20, p.y - 10, 10);
-    camera.lookAt(p.x,p.y,1);
-
-    sunLight.position.set(p.x + 2, p.y - 2, 5);
-    sunLight.target.position.set(p.x, p.y, 0);
+        camera.position.set(sumX + 20, sumY - 10, 10);
+        camera.lookAt(sumX, sumY, 1);
     
-    //controls.update();
-
-    for (let h of helpers) {
-        h.update();
+        sunLight.position.set(sumX + 2, sumY - 2, 5);
+        sunLight.target.position.set(sumX, sumY, 0);
+        
+        // controls.update();
+    
+        for (let h of helpers) {
+            h.update();
+        }
     }
+    else {
+        camera.position.set(10,10,10);
+        camera.lookAt(0,0,0);
+    }
+    
 
     renderer.render(scene, camera);
 

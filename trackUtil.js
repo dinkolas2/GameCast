@@ -178,9 +178,9 @@ export function getTrackPos800(lane, dist) {
             y = mapRange(dist, d0,d1, y0,y1);
             theta = Math.atan2(x1-x0, y1-y0) + Math.PI;
         }
-        else if (dist > d0 - curveLength) {
+        else if (dist > d0 - curveLength + laneWidth/2) {
             //curve 1
-            theta = (d0 - dist) / (radius - laneWidth) / curveLengthCorrection;
+            theta = (d0 - dist) / (radius - laneWidth/2) / curveLengthCorrection;
             x = centerX + radius * Math.cos(theta);
             y = centerY*2 - minorRadius * Math.sin(theta);
             theta = Math.PI-theta;
