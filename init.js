@@ -134,8 +134,6 @@ function initLights() {
         shadowViewer.update();
         shadowViewer.updateForWindowResize();
     }
-
-    
 }
 
 function initTrack() {
@@ -175,19 +173,21 @@ function initIO() {
     //receive race data from server
     const socket = io('http://localhost:8082');
     socket.on('tracking', (msg) => {
-        console.log('io input', msg);
-
         if (race === undefined) {
             initRace(msg);
         }
         else {
-            if (globalTOffset === undefined && race.raceTime !== 0) {
+            //TODO: this is kinda weird maybe should fix on server side?
+            //these two if statements allow raceTime to keep counting up after the first place runner
+            //has finished, because currently raceTime stops counting after first place finishes
+            if (globalTOffset === undefined && msg.raceTime !== 0) {
                 globalTOffset = msg.raceTime - msg.globalTime;
-                console.log('GLOBALTOFFSET', globalTOffset);
+                // console.log('GLOBALTOFFSET', globalTOffset, msg.raceTime);
             }
             if (msg.raceTime === msg.pRaceTime && msg.raceTime > 0 && globalTOffset !== undefined) {
                 msg.raceTime = msg.globalTime + globalTOffset;
             }
+            // console.log(msg.raceTime, msg.globalTime + globalTOffset);
             updateRace(msg);
         }
     });
@@ -273,12 +273,12 @@ function initRace(msg) {
                 let amsg = msg.athletes[id];
 
                 athleteModel.dist = amsg.pathDistance;
+                //TODO: before and after race use x,y data
                 let posTheta = race.f(athlete.lane, amsg.pathDistance);
                 athleteModel.posTheta = {
                     p: trackDataToGameTrack(amsg.x, amsg.y),
                     theta: posTheta.theta
                 };
-                //race.f(athlete.lane, amsg.pathDistance); //TODO: before and after race use x,y data
                 athleteModel.pose();
             }
 
@@ -286,9 +286,6 @@ function initRace(msg) {
         }
     }
 }
-
-const centerX = -39.3447;
-const centerY = -42.2861;
 
 function trackDataToGameTrack(x,y) {
     return new THREE.Vector3(
