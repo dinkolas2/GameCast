@@ -2,6 +2,8 @@ import {race, renderer, scene, camera, sunLight, clock, helpers, LOADINGSTATES, 
 
 //import * as THREE from 'three';
 
+const MANUALCAMERA = false;
+
 export function animate() {
     requestAnimationFrame(animate);
 
@@ -33,25 +35,25 @@ export function animate() {
         }
         
         //set camera
-        let sumX = 0;
-        let sumY = 0;
-        let count = 0;
-        for (let id in race.athletes) {
-            sumX += race.athletes[id].athleteModel.posTheta.p.x;
-            sumY += race.athletes[id].athleteModel.posTheta.p.y;
-            count++;
+        let sumDist = 0;
+        let count = Math.min(race.athletesList.length, 4);
+        for (let i = 0; i < count; i++) {
+            sumDist += race.athletesList[i].athleteModel.dist;
         }
 
-        sumX = sumX / count;
-        sumY = sumY / count;
+        sumDist = sumDist / count;
+        let p = race.f(4.5, sumDist).p;
     
-        camera.position.set(sumX + 20, sumY - 10, 10);
-        camera.lookAt(sumX, sumY, 1);
+        if (MANUALCAMERA) {
+            controls.update();
+        }
+        else {
+            camera.position.set(p.x + 20, p.y - 10, 10);
+            camera.lookAt(p.x, p.y, 1);
+        }
     
-        sunLight.position.set(sumX + 2, sumY - 2, 5);
-        sunLight.target.position.set(sumX, sumY, 0);
-        
-        // controls.update();
+        sunLight.position.set(p.x + 2, p.y - 2, 5);
+        sunLight.target.position.set(p.x, p.y, 0);
     
         for (let h of helpers) {
             h.update();

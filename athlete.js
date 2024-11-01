@@ -105,7 +105,7 @@ export class Athlete {
     }
 
 
-    pose(raceTime, delta) {
+    pose(phase = null, hurdle = 0) {
         let strideMult = mapRange(this.random, 0,1, 0.9,1.1);
         for (let k in this.actions) {
             this.actions[k].setEffectiveWeight(0);
@@ -122,33 +122,39 @@ export class Athlete {
             let distPerLoop = mapRange(f, 0,1, 2.5,5.8);
             let distTraveled = this.dist-this.pdist;
             let loop = distTraveled / distPerLoop * strideMult;
-            this.actions.lowsprint.setEffectiveWeight(1 - f);
-            this.actions.lowsprint.time = pmod(
+            this.actions.lowsprint.setEffectiveWeight((1 - f) * (1 - hurdle));
+            this.actions.lowsprint.time = phase !== null ? phase * this.actions.lowsprint.getClip().duration : pmod(
                 this.actions.lowsprint.time + this.actions.lowsprint.getClip().duration * loop,
                 this.actions.lowsprint.getClip().duration
             );
-            this.actions.sprint.setEffectiveWeight(f);
-            this.actions.sprint.time = pmod(
+            this.actions.sprint.setEffectiveWeight(f * (1 - hurdle));
+            this.actions.sprint.time = phase !== null ? phase * this.actions.sprint.getClip().duration : pmod(
                 this.actions.lowsprint.time * this.actions.sprint.getClip().duration/this.actions.lowsprint.getClip().duration,
                 this.actions.sprint.getClip().duration
             );
+            this.actions.hurdle.setEffectiveWeight(hurdle);
+            this.actions.hurdle.time = phase !== null ? phase * this.actions.hurdle.getClip().duration : 0;
         }
         else if (this.dist < this.race.raceDistance) {
-            this.actions.sprint.setEffectiveWeight(1);
-            this.actions.sprint.time = pmod(
+            this.actions.sprint.setEffectiveWeight(1 - hurdle);
+            this.actions.sprint.time = phase !== null ? phase * this.actions.sprint.getClip().duration : pmod(
                 this.actions.sprint.time + (this.dist - this.pdist) * this.actions.sprint.getClip().duration/5.8 * strideMult,
                 this.actions.sprint.getClip().duration
             );
+            this.actions.hurdle.setEffectiveWeight(hurdle);
+            this.actions.hurdle.time = phase !== null ? phase * this.actions.hurdle.getClip().duration : 0;
         }
         else {
             let pp = this.pposTheta.p;
             let p = this.posTheta.p;
-            this.actions.sprint.setEffectiveWeight(1);
+            this.actions.sprint.setEffectiveWeight(1 - hurdle);
             let ddist = Math.sqrt((pp.x - p.x)**2 + (pp.y - p.y)**2);
-            this.actions.sprint.time = pmod(
+            this.actions.sprint.time = phase !== null ? phase * this.actions.sprint.getClip().duration : pmod(
                 this.actions.sprint.time + ddist * this.actions.sprint.getClip().duration/5.8 * strideMult,
                 this.actions.sprint.getClip().duration
             );
+            this.actions.hurdle.setEffectiveWeight(hurdle);
+            this.actions.hurdle.time = phase !== null ? phase * this.actions.hurdle.getClip().duration : 0;
             this.mixer.update(0);
             this.armature.position.set(p.x, p.y, p.z);
             this.armature.rotation.set(0,0,Math.atan2(p.x - pp.x, pp.y - p.y, ));
