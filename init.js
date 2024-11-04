@@ -14,6 +14,8 @@ import { animate } from './animate.js';
 import { getTrackPos100,getTrackPos110,getTrackPos200,getTrackPos400,getTrackPos800,getTrackPos1500, STATES } from './trackUtil.js';
 import { mapRange } from './util.js';
 
+import { pmod } from './util.js';
+
 import { io } from "https://cdn.socket.io/4.7.5/socket.io.esm.min.js";
 //loading
 export const LOADINGSTATES = {
@@ -268,6 +270,8 @@ function initRace(msg) {
             }
         }
 
+        let lastHurdle = hurdle0 + hurdleSpacing * (hurdleCount - 1);
+
         race.setTime = (time) => {
             let msg = interpolateMsgs(time);
 
@@ -285,24 +289,45 @@ function initRace(msg) {
                 athleteModel.dist = amsg.pathDistance;
 
                 let phase, hurdle;
+
+                
+                let posTheta = race.f(athlete.lane, amsg.pathDistance); 
                 
                 if (amsg.pathDistance < hurdle0) {
-                    phase = amsg.pathDistance * phaseRatioStart;
-                    hurdle = Math.max(0, 1/3 * (3 - Math.abs(hurdle0 - amsg.pathDistance)));
+                    //before first hurdle
+                    let d = amsg.pathDistance
+                    let p0 = phaseRatioStart * 2;
+                    let p1 = phaseRatioStart;
+                    // quadratic with
+                    // dPhase/dDistance = p0 @ distance=0
+                    // dPhase/dDistance = p1 @ distance=hurdle0
+                    // phase = hurdle0*p1    @ distance=hurdle0
+                    // to make there be more steps taken at start to account for shorter stride length
+                    phase = (p1 - p0)/hurdle0/2 * d*d + p0*d + hurdle0 * (p1 - p0) / 2;
+                    hurdle = Math.sqrt(Math.max(0, 1/2 * (2 - Math.abs(hurdle0 - amsg.pathDistance))));
                 }
-                else if (hurdle0 + (hurdleCount-1) * hurdleSpacing < amsg.pathDistance) {
-                    phase = (amsg.pathDistance - hurdle0) * phaseRatio + 0.4;
-                    hurdle = Math.max(0, 1/3 * (3 - Math.abs(amsg.pathDistance - (hurdle0 + (hurdleCount-1) * hurdleSpacing))));
-                }
-                else {
+                else if (amsg.pathDistance < lastHurdle) {
+                    //middle hurdles
                     phase = (amsg.pathDistance - hurdle0) * phaseRatio + 0.4;
                     let d = (amsg.pathDistance - hurdle0) % hurdleSpacing;
                     d = (d + hurdleSpacing/2) % hurdleSpacing;
-                    hurdle = Math.max(0, 1/3 * (3 - Math.abs(d - hurdleSpacing/2)));
+                    hurdle = Math.sqrt(Math.max(0, 1/2 * (2 - Math.abs(d - hurdleSpacing/2))));
                 }
-                phase = phase % 1;
-                //TODO: before and after race use x,y data
-                let posTheta = race.f(athlete.lane, amsg.pathDistance); 
+                else if (amsg.pathDistance < race.raceDistance) {
+                    //after last hurdle
+                    phase = (amsg.pathDistance - hurdle0) * phaseRatio + 0.4;
+                    hurdle = Math.sqrt(Math.max(0, 1/2 * (2 - Math.abs(amsg.pathDistance - (hurdle0 + (hurdleCount-1) * hurdleSpacing)))));
+                }
+                else {
+                    //TODO: after race use x,y data
+                    let p = trackDataToGameTrack(amsg.x, amsg.y);
+                    posTheta.p = p;
+                    
+                    athleteModel.posTheta = posTheta;
+                    athleteModel.pose();
+                    continue;
+                }
+                phase = pmod(phase, 1);
                 posTheta.p.z += hurdle * (hurdleHeight - 0.840); //hurdle animation was animated at height 0.840, correct height of leap
                 athleteModel.posTheta = posTheta;
                 athleteModel.pose(phase, hurdle);
