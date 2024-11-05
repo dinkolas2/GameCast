@@ -1,8 +1,5 @@
-import {race, renderer, scene, camera, sunLight, clock, helpers, LOADINGSTATES, PRELOAD, controls} from './init.js';
-
-import * as THREE from 'three';
-
-const MANUALCAMERA = false;
+import { race, renderer, scene, camera,  clock, helpers, LOADINGSTATES, PRELOAD } from './init.js';
+import { cameraFunctions, cameraFunctionIndex } from './camera.js';
 
 export function animate() {
     requestAnimationFrame(animate);
@@ -33,38 +30,17 @@ export function animate() {
                 race.loadingState = LOADINGSTATES.AWAITING;
             }
         }
-        
-        //set camera
-        let sumDist = 0;
-        let count = Math.min(race.athletesList.length, 4);
-        for (let i = 0; i < count; i++) {
-            sumDist += race.athletesList[i].athleteModel.dist;
-        }
 
-        sumDist = sumDist / count;
-        let pt = race.f(4.5, sumDist);
-        let p = pt.p;
-    
-        if (MANUALCAMERA) {
-            controls.update();
-        }
-        else {
-            let newPos = new THREE.Vector3(p.x - 25 * Math.cos(pt.theta + 0.5), p.y - 25 * Math.sin(pt.theta + 0.5), 10);
-            camera.position.lerp(newPos, 0.005);
-            //camera.position.set(p.x + 20, p.y - 10, 10);
-            camera.lookAt(p.x, p.y, 1);
-        }
-    
-        sunLight.position.set(p.x + 2, p.y - 2, 5);
-        sunLight.target.position.set(p.x, p.y, 0);
+        cameraFunctions[cameraFunctionIndex]();
     
         for (let h of helpers) {
             h.update();
         }
     }
     else {
-        camera.position.set(10,10,10);
-        camera.lookAt(0,0,0);
+        //waiting for race data to come in
+
+        cameraFunctions[0]();
     }
     
 

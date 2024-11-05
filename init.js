@@ -11,6 +11,8 @@ import { Athlete } from './athlete.js';
 
 import { animate } from './animate.js';
 
+import { cameraFunctionIndex, setCameraFunctionIndex, cameraFunctions } from './camera.js';
+
 import { getTrackPos100,getTrackPos110,getTrackPos200,getTrackPos400,getTrackPos800,getTrackPos1500, STATES } from './trackUtil.js';
 import { mapRange } from './util.js';
 
@@ -58,13 +60,32 @@ export let DEBUG = false;
 
 async function init() {
 
+    initIO();
     initRender();
     initLights();
     initTrack();
     athleteGLTF = await initAthleteModel();
-    initIO();
+    initSocket();
 
     animate();
+}
+
+function initIO() {
+    window.onkeydown = (e) => {
+        if (e.code === 'ArrowRight') {
+            setCameraFunctionIndex(cameraFunctionIndex + 1);
+        }
+        else if (e.code === 'ArrowLeft') {
+            setCameraFunctionIndex(cameraFunctionIndex - 1);
+        }
+
+        if (e.code === 'Numpad0') {
+            setCameraFunctionIndex(0); //Manual
+        }
+        else if (e.code === 'Numpad5') {
+            setCameraFunctionIndex(1); //Tracking
+        }
+    };
 }
 
 function initRender() {
@@ -169,7 +190,7 @@ async function initAthleteModel() {
 }
 
 let globalTOffset;
-function initIO() {
+function initSocket() {
     //receive race data from server
     const socket = io('http://localhost:8082');
     socket.on('tracking', (msg) => {
