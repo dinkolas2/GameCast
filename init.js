@@ -250,7 +250,6 @@ function initRace(msg) {
         let athleteResult = msg.athletes[id];
         let c = SkeletonUtils.clone(athleteGLTF.scene);
         let athleteModel = new Athlete(c, athleteGLTF.animations, athleteResult);
-        athleteModel.race = race;
 
         let athlete = {
             athleteModel,

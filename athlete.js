@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { athleteShader } from './shaders/athleteShader.js';
-import { scene, matSkin } from './init.js';
+import { race, scene, matSkin } from './init.js';
 
 import { mapRange, pmod } from './util.js';
 
@@ -34,7 +34,7 @@ export class Athlete {
         let color1 = new THREE.Color( Math.random(),Math.random(),Math.random() );
         let color2 = new THREE.Color( Math.random(),Math.random(),Math.random() );
         
-        //replace with known colors
+        //TODO: replace with known colors if data is good
         // if (athleteInfo) {
         //     if (athleteInfo.color1) {
         //         color1.set(athleteInfo.color1.r, athleteInfo.color1.g, athleteInfo.color1.b);
@@ -83,7 +83,17 @@ export class Athlete {
         }
         this._dist = 0;
 
-        //TODO: morph targets for gender
+        //morph targets for gender
+        if (race.eventName.includes('Women')) {
+            this.meshCol1.morphTargetInfluences[0] = 0;
+            this.meshCol2.morphTargetInfluences[0] = 0;
+            this.meshSkin.morphTargetInfluences[0] = 0;
+        }
+        else {
+            this.meshCol1.morphTargetInfluences[0] = 1;
+            this.meshCol2.morphTargetInfluences[0] = 1;
+            this.meshSkin.morphTargetInfluences[0] = 1;
+        }
     }
 
     get dist() {
@@ -135,7 +145,7 @@ export class Athlete {
             this.actions.hurdle.setEffectiveWeight(hurdle);
             this.actions.hurdle.time = phase !== null ? phase * this.actions.hurdle.getClip().duration : 0;
         }
-        else if (this.dist < this.race.raceDistance) {
+        else if (this.dist < race.raceDistance) {
             this.actions.sprint.setEffectiveWeight(1 - hurdle);
             this.actions.sprint.time = phase !== null ? phase * this.actions.sprint.getClip().duration : pmod(
                 this.actions.sprint.time + (this.dist - this.pdist) * this.actions.sprint.getClip().duration/5.8 * strideMult,
