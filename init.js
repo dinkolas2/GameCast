@@ -1,8 +1,9 @@
+//TODO: make temp Vector3's to not instantiate as many. Replace new THREE.Vector3 with them where reasonable
+
 import * as THREE from 'three';
 //debug view
 import { ShadowMapViewer } from 'three/addons/utils/ShadowMapViewer.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-
 
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
@@ -78,12 +79,30 @@ function initIO() {
         else if (e.code === 'ArrowLeft') {
             setCameraFunctionIndex(cameraFunctionIndex - 1);
         }
-
-        if (e.code === 'Numpad0') {
+        else if (e.code === 'Numpad0') {
             setCameraFunctionIndex(0); //Manual
+            camera.fov = 20;
+            camera.updateProjectionMatrix();
         }
         else if (e.code === 'Numpad5') {
             setCameraFunctionIndex(1); //Tracking
+            camera.fov = 20;
+            camera.updateProjectionMatrix();
+        }
+        else if (e.code === 'Numpad6') {
+            setCameraFunctionIndex(2); //Framing
+            camera.fov = 5;
+            camera.updateProjectionMatrix();
+        }
+        else if (e.code === 'Numpad8') {
+            setCameraFunctionIndex(3); //Bird's Eye
+            camera.fov = 15;
+            camera.updateProjectionMatrix();
+        }
+        else if (e.code === 'Numpad2') {
+            setCameraFunctionIndex(4); //Tailing
+            camera.fov = 20;
+            camera.updateProjectionMatrix();
         }
     };
 }
@@ -96,7 +115,8 @@ function initRender() {
     clock = new THREE.Clock();
     clock.start();
 
-    renderer = new THREE.WebGLRenderer();
+    //TODO: check if antialiasing is too harmful for performance
+    renderer = new THREE.WebGLRenderer( {antialias: true} ); 
     renderer.setPixelRatio( window.devicePixelRatio );
     renderer.setSize( window.innerWidth, window.innerHeight );
     renderer.shadowMap.enabled = true;
@@ -298,8 +318,8 @@ function initRace(msg) {
 
             //phase at hurdles should be 0.4
             //phase should roughly increase by 1 every 5.8m
-            let phaseRatioStart = (Math.round(hurdle0 / 5.8 - 0.4) + 0.4) / hurdle0;
-            let phaseRatio = Math.round(hurdleSpacing / 5.8) / hurdleSpacing;
+            let phaseRatioStart = (Math.ceil(hurdle0 / 5.8 - 0.4) + 0.4) / hurdle0;
+            let phaseRatio = Math.ceil(hurdleSpacing / 5.8) / hurdleSpacing;
 
             //Set dist, posTheta
             for (let id in race.athletes) {
