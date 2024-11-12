@@ -104,6 +104,11 @@ function initIO() {
             camera.fov = 20;
             camera.updateProjectionMatrix();
         }
+        else if (e.code === 'Numpad4') {
+            setCameraFunctionIndex(5); //Frame All
+            camera.fov = 5;
+            camera.updateProjectionMatrix();
+        }
     };
 }
 
@@ -181,7 +186,7 @@ function initTrack() {
     //import track model
     gltfLoader.load('./models/trackLines.glb', (gltf) => {
         let child = gltf.scene.children[0];
-        let mat = new THREE.MeshPhongMaterial({ color: 0xE7E7E7 });
+        let mat = new THREE.MeshPhongMaterial({ color: 0xD7D7D7 });
         mat.depthTest = false;
         child.material = mat;
         child.renderOrder = -1;
