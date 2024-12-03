@@ -1,12 +1,17 @@
 import * as THREE from 'three';
-import { athleteShader } from './shaders/athleteShader.js';
-import { race, scene, matSkin } from './init.js';
+import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { race, athleteParent, matSkin, matText } from './init.js';
 
 import { mapRange, pmod } from './util.js';
 
+const loader = new FontLoader();
+
 export class Athlete {
-    constructor (athleteScene, animations, athleteInfo) {
-        this.random = Math.random();
+    constructor (athleteScene, animations, athleteInfo, id) {
+        this.random = Math.random(); // per athlete randomness
+        this.pickID = Number('0x'+id); // for mouse hover GPU picking
 
         this.scene = athleteScene;
         this.mixer = new THREE.AnimationMixer(this.scene);
@@ -29,6 +34,16 @@ export class Athlete {
 
         this.armature = this.scene.children[0];
         this.body = this.armature.children[3];
+
+        const nameDiv = document.createElement('div');
+        nameDiv.className = 'athleteName';
+        nameDiv.textContent = `${athleteInfo.firstName} ${athleteInfo.lastName}`;
+
+        this.nameObjectVisible = 0;
+        this.nameObject = new CSS2DObject(nameDiv);
+        this.nameObject.position.set(0,0,2.5);
+        this.armature.add(this.nameObject);
+        this.nameObject.visible = false;
 
         //default random colors
         let color1 = new THREE.Color( Math.random(),Math.random(),Math.random() );
@@ -57,21 +72,25 @@ export class Athlete {
                 child.castShadow = true;
                 child.receiveShadow = true;
                 this.meshCol1 = child;
+                this.meshCol1.pickID = this.pickID;
             }
             else if (child.name === 'geoCol2') {
                 child.material = this.matCol2; 
                 child.castShadow = true;
                 child.receiveShadow = true;
                 this.meshCol2 = child;
+                this.meshCol2.pickID = this.pickID;
             }
             else if (child.name === 'geoSkin') {
                 child.material = matSkin;
                 child.castShadow = true;
                 child.receiveShadow = true;
                 this.meshSkin = child;
+                this.meshSkin.pickID = this.pickID;
             }
         }
-        scene.add(this.scene);
+
+        athleteParent.add(this.scene);
 
         this._posTheta = {
             p: new THREE.Vector3(),
@@ -114,8 +133,19 @@ export class Athlete {
         this._posTheta = posTheta;
     }
 
+    highlight() {
+        this.nameObjectVisible = 1;
+    }
+
+    unHighlight() {
+        return;
+    }
+
 
     pose(phase = null, hurdle = 0) {
+        this.nameObjectVisible *= 0.99;
+        this.nameObject.visible = this.nameObjectVisible > 0.5;
+
         let strideMult = mapRange(this.random, 0,1, 0.9,1.1);
         for (let k in this.actions) {
             this.actions[k].setEffectiveWeight(0);

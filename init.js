@@ -1,12 +1,14 @@
 //TODO: make temp Vector3's to not instantiate as many. Replace new THREE.Vector3 with them where reasonable
 
 import * as THREE from 'three';
+import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 //debug view
 import { ShadowMapViewer } from 'three/addons/utils/ShadowMapViewer.js';
-import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 
 import { Athlete } from './athlete.js';
 
@@ -14,11 +16,12 @@ import { animate } from './animate.js';
 
 import { cameraFunctionIndex, setCameraFunctionIndex, cameraFunctions } from './camera.js';
 
-import { getTrackPos100,getTrackPos110,getTrackPos200,getTrackPos400,getTrackPos800,getTrackPos1500, STATES } from './trackUtil.js';
+import { trackDataToGameTrack, getTrackPos100,getTrackPos110,getTrackPos200,getTrackPos400,getTrackPos800,getTrackPos1500 } from './trackUtil.js';
 import { mapRange } from './util.js';
 
 import { pmod } from './util.js';
 
+import { GPUPicker } from './GPUPicker.js';
 import { io } from "https://cdn.socket.io/4.7.5/socket.io.esm.min.js";
 //loading
 export const LOADINGSTATES = {
@@ -29,11 +32,12 @@ export const LOADINGSTATES = {
 export const PRELOAD = 3; //seconds of data to wait for before starting animation
 
 //rendering
-export let camera, renderer;
+export let camera, renderer, rendererCSS;
 export let clock;
 
 //scene
 export let scene;
+export let athleteParent;
 
 //light
 export let sunLight;
@@ -48,10 +52,15 @@ export let shadowViewer;
 //import { trackShader } from './shaders/trackShader.js';
 //export let matTrack;
 export let matSkin;
+export let matText;
 
 //loaders
 const gltfLoader = new GLTFLoader();
 let athleteGLTF;
+
+//mouse
+export const mouse = new THREE.Vector2();
+export let picker;
 
 //race
 export let race;
@@ -69,9 +78,12 @@ async function init() {
     initSocket();
 
     animate();
+    console.log(THREE, athleteParent);
 }
 
 function initIO() {
+    document.addEventListener( 'mousemove', onMouseMove );
+
     window.onkeydown = (e) => {
         if (e.code === 'ArrowRight') {
             setCameraFunctionIndex(cameraFunctionIndex + 1);
@@ -127,11 +139,17 @@ function initRender() {
     renderer.shadowMap.enabled = true;
     document.body.appendChild( renderer.domElement );
 
+    rendererCSS = new CSS2DRenderer();
+    rendererCSS.setSize( window.innerWidth, window.innerHeight );
+    rendererCSS.domElement.style.position = 'absolute';
+    rendererCSS.domElement.style.top = '0px';
+    document.body.appendChild( rendererCSS.domElement );
+
     camera = new THREE.PerspectiveCamera(15, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set( 10,5,5 );
     camera.lookAt( 0,0,0 );
 
-    controls = new OrbitControls( camera, renderer.domElement );
+    controls = new OrbitControls( camera, rendererCSS.domElement );
     controls.target.set( 0, 2, 0 );
     controls.update();
 
@@ -139,6 +157,12 @@ function initRender() {
 
     //scene
     scene = new THREE.Scene();
+
+    athleteParent = new THREE.Object3D();
+
+    scene.add(athleteParent);
+
+    picker = new GPUPicker(renderer, scene, camera);
 }
 
 function initLights() {
@@ -210,6 +234,7 @@ async function initAthleteModel() {
     const load = (fileName) => new Promise((resolve) => gltfLoader.load(fileName, resolve));
 
     matSkin = new THREE.MeshPhongMaterial({ color: 0x2B2F40 });
+    matText = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
 
     return load('./models/athlete3.glb').then((gltf) => gltf);
 }
@@ -254,7 +279,7 @@ function initRace(msg) {
     for (let id in msg.athletes) {
         let athleteResult = msg.athletes[id];
         let c = SkeletonUtils.clone(athleteGLTF.scene);
-        let athleteModel = new Athlete(c, athleteGLTF.animations, athleteResult);
+        let athleteModel = new Athlete(c, athleteGLTF.animations, athleteResult, id);
 
         let athlete = {
             athleteModel,
@@ -285,6 +310,7 @@ function initRace(msg) {
 
     if (race.eventName.includes('Hurdles')) {
         let hurdleHeight, hurdle0, hurdleSpacing, hurdleCount;
+        //TODO: slow down hurdle step
 
         if (race.eventName.includes('Men')) {
             if (race.eventName.includes('110')) {
@@ -477,14 +503,6 @@ function initRace(msg) {
     }
 }
 
-function trackDataToGameTrack(x,y) {
-    return new THREE.Vector3(
-        (y - 2*39.3447 + 1) * 1.08,
-        -x - 2*42.2861,
-        0
-    );
-}
-
 //find relevant race.msgs, interpolate them to create msg at race.time
 //requires that time is in range [race.minTime, race.maxTime]
 function interpolateMsgs(time) {
@@ -532,9 +550,18 @@ function updateRace(msg) {
 
 init();
 
+//TODO: mobile compatibility
+function onMouseMove(e) {
+    //e.preventDefault();
+
+    mouse.x = e.clientX * window.devicePixelRatio, 
+    mouse.y = e.clientY * window.devicePixelRatio;
+}
+
 function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     
     renderer.setSize( window.innerWidth, window.innerHeight );
+    rendererCSS.setSize( window.innerWidth, window.innerHeight );
 }

@@ -1,5 +1,8 @@
-import { race, renderer, scene, camera,  clock, helpers, LOADINGSTATES, PRELOAD } from './init.js';
+import { race, renderer, rendererCSS, scene, camera, picker, mouse, clock, helpers, LOADINGSTATES, PRELOAD, athleteParent } from './init.js';
 import { cameraFunctions, cameraFunctionIndex } from './camera.js';
+
+let shouldPickObject = (ob) => Boolean(ob.pickID);
+let picked = null;
 
 export function animate() {
     requestAnimationFrame(animate);
@@ -32,7 +35,7 @@ export function animate() {
         }
 
         cameraFunctions[cameraFunctionIndex]();
-    
+
         for (let h of helpers) {
             h.update();
         }
@@ -45,6 +48,23 @@ export function animate() {
     
 
     renderer.render(scene, camera);
+    rendererCSS.render(scene, camera);
 
     // shadowViewer.render(renderer);
+
+    if (picked) {
+        picked.unHighlight();
+    }
+
+    let pick = picker.pick(mouse.x, mouse.y, shouldPickObject);
+    if (pick >= 0) {
+        let id = pick.toString(16).padStart(8, '0').toUpperCase();
+        console.log(id);
+        picked = race.athletes[id].athleteModel;
+        console.log(picked);
+        picked.highlight();
+    }
+    else {
+        picked = null;
+    }
 }

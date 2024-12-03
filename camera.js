@@ -56,6 +56,8 @@ function setCameraTracking() {
 //
 // Good for unlaned races or back stretch, because otherwise it can be discontinuous
 function setCameraFraming() {
+    let c0 = new THREE.Vector3().copy(camera.position);
+
     let cameraViewDirection = new THREE.Vector3(10,3,-5);
     cameraViewDirection.normalize();
 
@@ -129,11 +131,15 @@ function setCameraFraming() {
         yDist / yFOV
     );
     camera.position.add(cameraViewDirection.multiplyScalar(-dist));
+
+    camera.position.lerp(c0, 0.95);
 }
 
 //FRAMEALL camera behavior:
 // FRAMING but with all athletes
 function setCameraFrameAll() {
+    let c0 = new THREE.Vector3().copy(camera.position);
+
     let cameraViewDirection = new THREE.Vector3(10,3,-5);
     cameraViewDirection.normalize();
 
@@ -179,10 +185,10 @@ function setCameraFrameAll() {
     }
 
     //TODO: revisit left/right/top/bottom padding. Should this be in meters, pixels, etc?
-    xMin -= 1;
-    yMin -= 1;
-    xMax += 1;
-    yMax += 3; // roughly height of athletes + 1m
+    xMin -= 2;
+    yMin -= 2;
+    xMax += 2;
+    yMax += 4; // roughly height of athletes + 2m
 
     // width and height of plane space bounding box
     let xDist = xMax - xMin; 
@@ -207,11 +213,15 @@ function setCameraFrameAll() {
         yDist / yFOV
     );
     camera.position.add(cameraViewDirection.multiplyScalar(-dist));
+
+    camera.position.lerp(c0, 0.95);
 }
 
 //BIRD'S EYE camera behavior:
 //same as FRAMING except top down view direction that rotates, and frames all athletes
 function setCameraBird() {
+    let c0 = new THREE.Vector3().copy(camera.position);
+
     let sumX = 0, sumY = 0, sumDist = 0;
     let count = race.athletesList.length;
     let as = [];
@@ -296,11 +306,15 @@ function setCameraBird() {
         yDist / yFOV
     );
     camera.position.add(cameraViewDirection.multiplyScalar(-dist));
+
+    camera.position.lerp(c0, 0.95);
 }
 
 //TAILING camera behavior:
 // fly above/behind first place athlete
 function setCameraTailing() {
+    let c0 = new THREE.Vector3().copy(camera.position);
+
     let p = race.athletesList[0].athleteModel.posTheta.p;
     let theta = race.athletesList[0].athleteModel.posTheta.theta;
 
@@ -309,6 +323,8 @@ function setCameraTailing() {
 
     sunLight.position.set(p.x + 2, p.y - 2, 5);
     sunLight.target.position.set(p.x, p.y, 0);
+
+    camera.position.lerp(c0, 0.95);
 }
 
 export const cameraFunctions = [setCameraManual, setCameraTracking, setCameraFraming, setCameraBird, setCameraTailing, setCameraFrameAll];

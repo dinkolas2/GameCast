@@ -1,12 +1,6 @@
 import * as THREE from 'three';
 import { mapRange } from './util.js';
 
-export const STATES = {
-    MARK: 1,
-    SET:  2,
-    GO:   3,
-};
-
 const centerX = -39.3447;
 const centerY = -42.2861;
 const laneWidth = 1.2;
@@ -216,7 +210,7 @@ export function getTrackPos800(lane, dist) {
     };
 }
 
-//TODO
+//TODO 1500
 export function getTrackPos1500(lane, dist) {
     const radius = radius0 + laneWidth * (lane - 0.5);
     const radius1 = radius0 + laneWidth * 0.5;
@@ -304,4 +298,12 @@ export function getTrackPos1500(lane, dist) {
         ),
         theta: theta
     };
+}
+
+export function trackDataToGameTrack(x,y) {
+    return new THREE.Vector3(
+        (y - 2*39.3447 + 1) * 1.08,
+        -x - 2*42.2861,
+        0
+    );
 }
