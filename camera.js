@@ -31,7 +31,7 @@ function setCameraTracking() {
     let sumDist = 0;
     let count = Math.min(race.athletesList.length, 4);
     for (let i = 0; i < count; i++) {
-        sumDist += race.athletesList[i].athleteModel.dist;
+        sumDist += race.athletesList[i].dist;
     }
 
     sumDist = sumDist / count;
@@ -65,7 +65,7 @@ function setCameraFraming() {
     let count = Math.min(race.athletesList.length, 4);
     let as = [];
     for (let i = 0; i < count; i++) {
-        let v = race.athletesList[i].athleteModel.posTheta.p.clone();
+        let v = race.athletesList[i].posTheta.p.clone();
         sumX += v.x;
         sumY += v.y;
         as.push(v);
@@ -78,7 +78,8 @@ function setCameraFraming() {
     //set camera angle
     camera.lookAt(v0.x + cameraViewDirection.x, v0.y + cameraViewDirection.y, v0.z + cameraViewDirection.z);
     
-    const up = new THREE.Vector3(0, 1, 0);
+    //get camera right (x+) and up (z+) vectors from camera's perspective
+    const up = new THREE.Vector3(0, 1, 0); 
     const right = new THREE.Vector3(1, 0, 0);
     right.applyQuaternion(camera.quaternion);
     up.applyQuaternion(camera.quaternion);
@@ -132,7 +133,7 @@ function setCameraFraming() {
     );
     camera.position.add(cameraViewDirection.multiplyScalar(-dist));
 
-    camera.position.lerp(c0, 0.95);
+    camera.position.lerp(c0, 0.9);
 }
 
 //FRAMEALL camera behavior:
@@ -147,7 +148,7 @@ function setCameraFrameAll() {
     let count = race.athletesList.length;
     let as = [];
     for (let i = 0; i < count; i++) {
-        let v = race.athletesList[i].athleteModel.posTheta.p.clone();
+        let v = race.athletesList[i].posTheta.p.clone();
         sumX += v.x;
         sumY += v.y;
         as.push(v);
@@ -214,7 +215,7 @@ function setCameraFrameAll() {
     );
     camera.position.add(cameraViewDirection.multiplyScalar(-dist));
 
-    camera.position.lerp(c0, 0.95);
+    camera.position.lerp(c0, 0.9);
 }
 
 //BIRD'S EYE camera behavior:
@@ -226,10 +227,10 @@ function setCameraBird() {
     let count = race.athletesList.length;
     let as = [];
     for (let i = 0; i < count; i++) {
-        let v = race.athletesList[i].athleteModel.posTheta.p.clone();
+        let v = race.athletesList[i].posTheta.p.clone();
         sumX += v.x;
         sumY += v.y;
-        sumDist += race.athletesList[i].athleteModel.dist;
+        sumDist += race.athletesList[i].dist;
         as.push(v);
     }
 
@@ -307,7 +308,7 @@ function setCameraBird() {
     );
     camera.position.add(cameraViewDirection.multiplyScalar(-dist));
 
-    camera.position.lerp(c0, 0.95);
+    camera.position.lerp(c0, 0.9);
 }
 
 //TAILING camera behavior:
@@ -315,8 +316,8 @@ function setCameraBird() {
 function setCameraTailing() {
     let c0 = new THREE.Vector3().copy(camera.position);
 
-    let p = race.athletesList[0].athleteModel.posTheta.p;
-    let theta = race.athletesList[0].athleteModel.posTheta.theta;
+    let p = race.athletesList[0].posTheta.p;
+    let theta = race.athletesList[0].posTheta.theta;
 
     camera.position.set(p.x - 20*Math.cos(theta - Math.PI/2), p.y - 20*Math.sin(theta - Math.PI/2), 5);
     camera.lookAt(p.x - 2*Math.cos(theta - Math.PI/2), p.y - 2*Math.sin(theta - Math.PI/2), 0);
@@ -324,7 +325,7 @@ function setCameraTailing() {
     sunLight.position.set(p.x + 2, p.y - 2, 5);
     sunLight.target.position.set(p.x, p.y, 0);
 
-    camera.position.lerp(c0, 0.95);
+    camera.position.lerp(c0, 0.9);
 }
 
 export const cameraFunctions = [setCameraManual, setCameraTracking, setCameraFraming, setCameraBird, setCameraTailing, setCameraFrameAll];

@@ -59,9 +59,7 @@ export function animate() {
     let pick = picker.pick(mouse.x, mouse.y, shouldPickObject);
     if (pick >= 0) {
         let id = pick.toString(16).padStart(8, '0').toUpperCase();
-        console.log(id);
-        picked = race.athletes[id].athleteModel;
-        console.log(picked);
+        picked = race.athletes[id];
         picked.highlight();
     }
     else {

@@ -78,7 +78,6 @@ async function init() {
     initSocket();
 
     animate();
-    console.log(THREE, athleteParent);
 }
 
 function initIO() {
@@ -263,6 +262,12 @@ function initSocket() {
 }
 
 function initRace(msg) {
+    //The race object holds:
+    // -The race data as it comes in from the server
+    // -The state of what time slice we are viewing the race at, 
+    //      whether we are playing/awaiting data
+    // -The athletes (accessible by list sorted by rank at the current race.time, and by ID)
+
     //race basics
     race = {
         loadingState: LOADINGSTATES.INIT,
@@ -276,15 +281,12 @@ function initRace(msg) {
         athletesList: [],
     };
 
+    //Create Athlete models
     for (let id in msg.athletes) {
         let athleteResult = msg.athletes[id];
         let c = SkeletonUtils.clone(athleteGLTF.scene);
-        let athleteModel = new Athlete(c, athleteGLTF.animations, athleteResult, id);
+        let athlete = new Athlete(c, athleteGLTF.animations, athleteResult, id);
 
-        let athlete = {
-            athleteModel,
-            lane: athleteResult.lane,
-        };
         race.athletes[id] = athlete;
         race.athletesList.push(athlete);
     }
@@ -354,10 +356,9 @@ function initRace(msg) {
             //Set dist, posTheta
             for (let id in race.athletes) {
                 let athlete = race.athletes[id];
-                let athleteModel = athlete.athleteModel;
                 let amsg = msg.athletes[id];
 
-                athleteModel.dist = amsg.pathDistance;
+                athlete.dist = amsg.pathDistance;
 
                 let phase, hurdle;
 
@@ -394,20 +395,21 @@ function initRace(msg) {
                     let p = trackDataToGameTrack(amsg.x, amsg.y);
                     posTheta.p = p;
                     
-                    athleteModel.posTheta = posTheta;
-                    athleteModel.pose();
+                    athlete.posTheta = posTheta;
+                    athlete.pose();
                     continue;
                 }
                 phase = pmod(phase, 1);
                 posTheta.p.z += hurdle * (hurdleHeight - 0.840); //hurdle animation was animated at height 0.840, correct height of leap
-                athleteModel.posTheta = posTheta;
-                athleteModel.pose(phase, hurdle);
+                athlete.posTheta = posTheta;
+                athlete.pose(phase, hurdle);
             }
 
             race.time = time;
-            race.athletesList.sort((b,a) => a.athleteModel.dist - b.athleteModel.dist);
+            race.athletesList.sort((b,a) => a.dist - b.dist);
         }
 
+        // Add hurdle models
         gltfLoader.load('./models/hurdle.glb', (gltf) => {
             let matPoles = new THREE.MeshPhongMaterial({ color: 0x7993BC });
             let matBars = new THREE.MeshPhongMaterial({ color: 0x121F43 });
@@ -457,6 +459,8 @@ function initRace(msg) {
         });
     }
     else if (race.eventName.includes('100') || race.eventName.includes('200') || race.eventName.includes('400')) {
+        //Laned Races
+
         //requires that time is in range [race.minTime, race.maxTime]
         race.setTime = (time) => {
             let msg = interpolateMsgs(time);
@@ -464,19 +468,20 @@ function initRace(msg) {
             //Set dist, posTheta
             for (let id in race.athletes) {
                 let athlete = race.athletes[id];
-                let athleteModel = athlete.athleteModel;
                 let amsg = msg.athletes[id];
 
-                athleteModel.dist = amsg.pathDistance;
-                athleteModel.posTheta = race.f(athlete.lane, amsg.pathDistance); //TODO: before and after race use x,y data
-                athleteModel.pose();
+                athlete.dist = amsg.pathDistance;
+                athlete.posTheta = race.f(athlete.lane, amsg.pathDistance); //TODO: before and after race use x,y data?
+                athlete.pose();
             }
 
             race.time = time;
-            race.athletesList.sort((b,a) => a.athleteModel.dist - b.athleteModel.dist);
+            race.athletesList.sort((b,a) => a.dist - b.dist);
         }
     }
     else if (race.eventName.includes('800') || race.eventName.includes('1500') || race.eventName.includes('3000')) {
+        //Un-laned races
+
         //requires that time is in range [race.minTime, race.maxTime]
         race.setTime = (time) => {
             let msg = interpolateMsgs(time);
@@ -484,21 +489,20 @@ function initRace(msg) {
             //Set dist, posTheta
             for (let id in race.athletes) {
                 let athlete = race.athletes[id];
-                let athleteModel = athlete.athleteModel;
                 let amsg = msg.athletes[id];
 
-                athleteModel.dist = amsg.pathDistance;
+                athlete.dist = amsg.pathDistance;
                 //TODO: before and after race use x,y data
                 let posTheta = race.f(athlete.lane, amsg.pathDistance);
-                athleteModel.posTheta = {
+                athlete.posTheta = {
                     p: trackDataToGameTrack(amsg.x, amsg.y),
                     theta: posTheta.theta
                 };
-                athleteModel.pose();
+                athlete.pose();
             }
 
             race.time = time;
-            race.athletesList.sort((b,a) => a.athleteModel.dist - b.athleteModel.dist);
+            race.athletesList.sort((b,a) => a.dist - b.dist);
         }
     }
 }

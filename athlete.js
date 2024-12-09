@@ -10,6 +10,7 @@ const loader = new FontLoader();
 
 export class Athlete {
     constructor (athleteScene, animations, athleteInfo, id) {
+        this.lane = athleteInfo.lane;
         this.random = Math.random(); // per athlete randomness
         this.pickID = Number('0x'+id); // for mouse hover GPU picking
 
