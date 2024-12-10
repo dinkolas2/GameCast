@@ -224,6 +224,7 @@ function setCameraFrameNFromView(n, cameraViewDirection, padding) {
     yMin -= padding.bottom;
     xMax += padding.right;
     yMax += padding.top;
+    xMax += (xMax - xMin) * 150 / window.innerWidth;
 
     // width and height of plane space bounding box
     let xDist = xMax - xMin; 

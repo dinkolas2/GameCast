@@ -61,6 +61,7 @@ let athleteGLTF;
 //mouse
 export const mouse = new THREE.Vector2();
 export let picker;
+export let leaderboardContainer;
 
 //race
 export let race;
@@ -76,6 +77,7 @@ async function init() {
     initTrack();
     athleteGLTF = await initAthleteModel();
     initSocket();
+    initLeaderboard();
 
     animate();
 }
@@ -259,6 +261,12 @@ function initSocket() {
             updateRace(msg);
         }
     });
+}
+
+function initLeaderboard() {
+    leaderboardContainer = document.createElement('div');
+    leaderboardContainer.className = 'leaderboard';
+    document.body.appendChild(leaderboardContainer);
 }
 
 function initRace(msg) {
@@ -554,10 +562,26 @@ function updateRace(msg) {
 
 init();
 
-//TODO: mobile compatibility
-function onMouseMove(e) {
-    //e.preventDefault();
+//TODO: test mobile compatibility
+window.addEventListener('touchstart', (e) => {
+    // prevent the window from scrolling
+    e.preventDefault();
+    mouse.x = e.touches[0].clientX * window.devicePixelRatio;
+    mouse.y = e.touches[0].clientY * window.devicePixelRatio;
+}, {passive: false});
+   
+window.addEventListener('touchmove', (e) => {
+    mouse.x = e.touches[0].clientX * window.devicePixelRatio;
+    mouse.y = e.touches[0].clientY * window.devicePixelRatio;
+});
+   
+window.addEventListener('touchend', (e) => {
+    mouse.x = -10;
+    mouse.y = -10;
+});
 
+
+function onMouseMove(e) {
     mouse.x = e.clientX * window.devicePixelRatio, 
     mouse.y = e.clientY * window.devicePixelRatio;
 }

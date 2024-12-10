@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { race, athleteParent, matSkin, matText } from './init.js';
+import { race, athleteParent, matSkin, matText, leaderboardContainer } from './init.js';
 
 import { mapRange, pmod } from './util.js';
 
@@ -36,15 +36,31 @@ export class Athlete {
         this.armature = this.scene.children[0];
         this.body = this.armature.children[3];
 
-        const nameDiv = document.createElement('div');
-        nameDiv.className = 'athleteName';
-        nameDiv.textContent = `${athleteInfo.firstName} ${athleteInfo.lastName}`;
+        const labelDiv = document.createElement('div');
+        labelDiv.className = 'athleteLabel';
+        labelDiv.textContent = `${athleteInfo.firstName} ${athleteInfo.lastName}`;
 
-        this.nameObjectVisible = 0;
-        this.nameObject = new CSS2DObject(nameDiv);
-        this.nameObject.position.set(0,0,2.5);
-        this.armature.add(this.nameObject);
-        this.nameObject.visible = false;
+        this.labelObjectVisible = 0;
+        this.labelObject = new CSS2DObject(labelDiv);
+        this.labelObject.position.set(0,0,2.5);
+        this.armature.add(this.labelObject);
+        this.labelObject.visible = false;
+
+        this.inv = 0; //for keeping track of translations as rankings change
+        this.rankEl = document.createElement('div');
+        this.rankEl.className = 'athleteRank';
+        this.rankEl.textContent = `${athleteInfo.firstName} ${athleteInfo.lastName}`;
+        leaderboardContainer.appendChild(this.rankEl);
+        this.rankEl.onmouseenter = () => {
+            for (let a of race.athletesList) {
+                a.unHighlight();
+            }
+            this.highlight();
+            this.labelObjectVisible = 99999999;
+        }
+        this.rankEl.onmouseleave = () => {
+            this.unHighlight();
+        }
 
         //default random colors
         let color1 = new THREE.Color( Math.random(),Math.random(),Math.random() );
@@ -138,17 +154,24 @@ export class Athlete {
     }
 
     highlight() {
-        this.nameObjectVisible = 1;
+        this.labelObjectVisible = 1;
+        this.labelObject.visible = true;
+        this.rankEl.classList.add('highlight');
     }
 
     unHighlight() {
-        return;
+        this.labelObjectVisible = 0;
+        this.labelObject.visible = false;
+        this.rankEl.classList.remove('highlight');
     }
 
 
     pose(phase = null, hurdle = 0) {
-        this.nameObjectVisible *= 0.99;
-        this.nameObject.visible = this.nameObjectVisible > 0.5;
+        //TODO: better visibility control of labels
+        this.labelObjectVisible *= 0.999;
+        if (0 < this.labelObjectVisible && this.labelObjectVisible < 0.5) {
+            this.unHighlight();
+        }
 
         let strideMult = mapRange(this.random, 0,1, 0.9,1.1);
         for (let k in this.actions) {

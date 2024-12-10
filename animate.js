@@ -1,4 +1,4 @@
-import { race, renderer, rendererCSS, scene, camera, picker, mouse, clock, helpers, LOADINGSTATES, PRELOAD, athleteParent } from './init.js';
+import { race, renderer, rendererCSS, scene, camera, picker, mouse, clock, helpers, LOADINGSTATES, PRELOAD, athleteParent, leaderboardContainer } from './init.js';
 import { cameraFunctions, cameraFunctionIndex } from './camera.js';
 
 let shouldPickObject = (ob) => Boolean(ob.pickID);
@@ -52,17 +52,37 @@ export function animate() {
 
     // shadowViewer.render(renderer);
 
-    if (picked) {
-        picked.unHighlight();
-    }
 
-    let pick = picker.pick(mouse.x, mouse.y, shouldPickObject);
-    if (pick >= 0) {
-        let id = pick.toString(16).padStart(8, '0').toUpperCase();
-        picked = race.athletes[id];
-        picked.highlight();
-    }
-    else {
-        picked = null;
+    if (race) {
+        //mouse hover highlight athletes GPU picking
+        let pick = picker.pick(mouse.x, mouse.y, shouldPickObject);
+        if (pick >= 0) {
+            for (let athlete of race.athletesList) {
+                athlete.unHighlight();
+            }
+            let id = pick.toString(16).padStart(8, '0').toUpperCase();
+            picked = race.athletes[id];
+            picked.highlight();
+        }
+        else {
+            picked = null;
+        }
+
+        //sort athlete ranking divs
+        for (let a of race.athletesList) {
+            a.first = a.rankEl.getBoundingClientRect().top;
+        }
+        leaderboardContainer.innerHTML = "";
+        for(let a of race.athletesList) {
+            leaderboardContainer.appendChild(a.rankEl);
+        }
+        for (let a of race.athletesList) {
+            a.last = a.rankEl.getBoundingClientRect().top;
+            if (a.first !== a.last) {
+                a.inv = a.first - a.last;
+            }
+            a.rankEl.style.transform = `translateY(${Math.floor(a.inv)}px)`;
+            a.inv *= 0.9;
+        }
     }
 }

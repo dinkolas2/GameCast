@@ -3,9 +3,43 @@ body {
     padding: 0;
 }
 
-.athleteName {
+.athleteLabel {
     font: 15px Arial, sans-serif;
     background-color: rgba(255,255,255, 0.9);
     padding: 3px;
     border-radius: 3px;
+}
+
+.athleteRank {
+    font: 15px Arial, sans-serif;
+    background-color: rgb(49, 49, 65, 0.5);
+    border-radius: 2px;
+    padding: 3px;
+    margin: 5px;
+    color: rgb(222, 229, 238);
+    text-align: center;
+}
+.highlight {
+    background-color: rgb(124, 124, 151, 0.5);
+}
+.athleteRank:nth-child(1) {
+    border: 3px outset gold;
+    margin: 2px;
+}
+.athleteRank:nth-child(2) {
+    border: 3px outset silver;
+    margin: 2px;
+}
+.athleteRank:nth-child(3) {
+    border: 3px outset rgb(206, 113, 70);
+    margin: 2px;
+}
+
+.leaderboard {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 150px;
+    overflow: hidden;
+    background-color: rgba(100, 100, 129, 0.5);
 }
