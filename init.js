@@ -170,19 +170,19 @@ function initLights() {
     scene.add(envLight);
 
     sunLight = new THREE.DirectionalLight( 0xFFFDE0, 5 );
-    sunLight.position.set(0,5,5);
+    sunLight.position.set(0,10,10);
     sunLight.target.position.set(0,0,0);
     sunLight.castShadow = true;
 
     const shadow = sunLight.shadow;
     shadow.mapSize.width = 1024;
     shadow.mapSize.height = 1024;
-    shadow.camera.left = -10;
-    shadow.camera.bottom = -10;
-    shadow.camera.right = 10;
-    shadow.camera.top = 10;
+    shadow.camera.left = -15;
+    shadow.camera.bottom = -15;
+    shadow.camera.right = 15;
+    shadow.camera.top = 15;
     shadow.camera.near = 1;
-    shadow.camera.far = 10;
+    shadow.camera.far = 30;
 
     scene.add(sunLight);
 
@@ -241,7 +241,7 @@ async function initAthleteModel() {
 let globalTOffset;
 function initSocket() {
     //receive race data from server
-    const socket = io('http://localhost:8082');
+    const socket = io('http://192.168.1.148:8082');
     socket.on('tracking', (msg) => {
         if (race === undefined) {
             initRace(msg);

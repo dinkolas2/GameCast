@@ -4,11 +4,21 @@ import { pmod } from './util.js';
 
 import * as THREE from 'three';
 
-export let cameraFunctionIndex = 0;
+export let cameraFunctionIndex = 5;
+let indexChanged = true;
 
 export function setCameraFunctionIndex(v) {
+    indexChanged = true;
     cameraFunctionIndex = pmod(v, cameraFunctions.length);
 }
+
+const tempV3_1 = new THREE.Vector3();
+const tempV3_2 = new THREE.Vector3();
+const tempV3_3 = new THREE.Vector3();
+const tempOb = new THREE.Object3D();
+tempOb.up.set(0,0,1);
+const padding = {left: 0, right: 0, top: 0, bottom: 0};
+const cameraViewDirection = new THREE.Vector3();
 
 //MANUAL camera behavior:
 //update with THREE.js OrbitControls
@@ -19,6 +29,7 @@ function setCameraManual() {
 
     sunLight.position.set(p.x + 2, p.y - 2, 5);
     sunLight.target.position.set(p.x, p.y, 0);
+    indexChanged = false;
 }
 
 //TRACKING camera behavior:
@@ -39,12 +50,18 @@ function setCameraTracking() {
     let p = pt.p;
 
     let newPos = new THREE.Vector3(p.x - 25 * Math.cos(pt.theta + 0.5), p.y - 25 * Math.sin(pt.theta + 0.5), 10);
-    camera.position.lerp(newPos, 0.005);
+    if (indexChanged) {
+        camera.position.copy(newPos);
+    }
+    else {
+        camera.position.lerp(newPos, 0.005);
+    }
     //camera.position.set(p.x + 20, p.y - 10, 10);
     camera.lookAt(p.x, p.y, 1);
 
     sunLight.position.set(p.x + 2, p.y - 2, 5);
     sunLight.target.position.set(p.x, p.y, 0);
+    indexChanged = false;
 }
 
 //FRAMING camera behavior:
@@ -56,174 +73,45 @@ function setCameraTracking() {
 //
 // Good for unlaned races or back stretch, because otherwise it can be discontinuous
 function setCameraFraming() {
-    let c0 = new THREE.Vector3().copy(camera.position);
-
-    let cameraViewDirection = new THREE.Vector3(10,3,-5);
-    cameraViewDirection.normalize();
-
-    let sumX = 0, sumY = 0;
-    let count = Math.min(race.athletesList.length, 4);
-    let as = [];
-    for (let i = 0; i < count; i++) {
-        let v = race.athletesList[i].posTheta.p.clone();
-        sumX += v.x;
-        sumY += v.y;
-        as.push(v);
-    }
-
-    const v0 = new THREE.Vector3(sumX / count, sumY / count, 0);
-    //set camera position to plane origin
-    camera.position.copy(v0);
-
-    //set camera angle
-    camera.lookAt(v0.x + cameraViewDirection.x, v0.y + cameraViewDirection.y, v0.z + cameraViewDirection.z);
+    cameraViewDirection.set(10,3,-5);
+    padding.left = 1;
+    padding.right = 1;
+    padding.bottom = 1;
+    padding.top = 3; //2 + height of athletes roughly 2m
     
-    //get camera right (x+) and up (z+) vectors from camera's perspective
-    const up = new THREE.Vector3(0, 1, 0); 
-    const right = new THREE.Vector3(1, 0, 0);
-    right.applyQuaternion(camera.quaternion);
-    up.applyQuaternion(camera.quaternion);
+    const pos = setCameraFrameNFromView(Math.min(3, race.athletesList.length), cameraViewDirection, padding);
 
-    //get bounding rectangle in plane space
-    let xMin = Infinity;
-    let xMax = -Infinity;
-    let yMin = Infinity;
-    let yMax = -Infinity;
-    for (let a of as) {
-        //origin of plane space is average of athletes
-        a.sub(v0);
-        //project athlete onto plane
-        a.projectOnPlane(cameraViewDirection);
-        //plane space right and up
-        let px = right.dot(a);
-        let py = up.dot(a);
-        xMin = Math.min(xMin, px);
-        xMax = Math.max(xMax, px);
-        yMin = Math.min(yMin, py);
-        yMax = Math.max(yMax, py);
+    if (indexChanged) {
+        camera.position.set(pos.x,pos.y,pos.z);
     }
-
-    //TODO: revisit left/right/top/bottom padding. Should this be in meters, pixels, etc?
-    xMin -= 1;
-    yMin -= 1;
-    xMax += 1;
-    yMax += 3; // roughly height of athletes + 1m
-
-    // width and height of plane space bounding box
-    let xDist = xMax - xMin; 
-    let yDist = yMax - yMin; 
-    // center of plane space bounding box
-    let xCenter = (xMax + xMin)/2;
-    let yCenter = (yMax + yMin)/2;
-
-    //camera starts at plane origin (v0)
-    //move camera in plane coordinates to be centered on bounding box
-    camera.position.add(right.multiplyScalar(xCenter));
-    camera.position.add(up.multiplyScalar(yCenter));
-    //light box centered on bounding box
-    sunLight.position.set(camera.position.x + 2, camera.position.y - 2, 5);
-    sunLight.target.position.set(camera.position.x, camera.position.y, 0);
+    else {
+        camera.position.lerp(pos, 0.1);
+    }
     
-    //move camera backwards to have whole bounding box in view
-    let yFOV = 2 * Math.tan(camera.fov * Math.PI/180 / 2); //ratio of vertical view height / forwards view depth
-    let xFOV = yFOV * camera.aspect; //ratio of horizontal view width / forwards view depth
-    let dist = Math.max(
-        xDist / xFOV,
-        yDist / yFOV
-    );
-    camera.position.add(cameraViewDirection.multiplyScalar(-dist));
-
-    camera.position.lerp(c0, 0.9);
+    camera.lookAt(camera.position.x + cameraViewDirection.x, camera.position.y + cameraViewDirection.y, camera.position.z + cameraViewDirection.z);
+    indexChanged = false;
 }
 
 //FRAMEALL camera behavior:
 // FRAMING but with all athletes
 function setCameraFrameAll() {
-    let c0 = new THREE.Vector3().copy(camera.position);
-
-    let cameraViewDirection = new THREE.Vector3(10,3,-5);
-    cameraViewDirection.normalize();
-
-    let sumX = 0, sumY = 0;
-    let count = race.athletesList.length;
-    let as = [];
-    for (let i = 0; i < count; i++) {
-        let v = race.athletesList[i].posTheta.p.clone();
-        sumX += v.x;
-        sumY += v.y;
-        as.push(v);
-    }
-
-    const v0 = new THREE.Vector3(sumX / count, sumY / count, 0);
-    //set camera position to plane origin
-    camera.position.copy(v0);
-
-    //set camera angle
-    camera.lookAt(v0.x + cameraViewDirection.x, v0.y + cameraViewDirection.y, v0.z + cameraViewDirection.z);
+    cameraViewDirection.set(10,3,-5);
+    padding.left = 2;
+    padding.right = 2;
+    padding.bottom = 2;
+    padding.top = 4; //2 + height of athletes roughly 2m
     
-    const up = new THREE.Vector3(0, 1, 0);
-    const right = new THREE.Vector3(1, 0, 0);
-    right.applyQuaternion(camera.quaternion);
-    up.applyQuaternion(camera.quaternion);
+    const pos = setCameraFrameNFromView(race.athletesList.length, cameraViewDirection, padding);
 
-    //get bounding rectangle in plane space
-    let xMin = Infinity;
-    let xMax = -Infinity;
-    let yMin = Infinity;
-    let yMax = -Infinity;
-    for (let a of as) {
-        //origin of plane space is average of athletes
-        a.sub(v0);
-        //project athlete onto plane
-        a.projectOnPlane(cameraViewDirection);
-        //plane space right and up
-        let px = right.dot(a);
-        let py = up.dot(a);
-        xMin = Math.min(xMin, px);
-        xMax = Math.max(xMax, px);
-        yMin = Math.min(yMin, py);
-        yMax = Math.max(yMax, py);
-    }
-
-    //TODO: revisit left/right/top/bottom padding. Should this be in meters, pixels, etc?
-    xMin -= 2;
-    yMin -= 2;
-    xMax += 2;
-    yMax += 4; // roughly height of athletes + 2m
-
-    // width and height of plane space bounding box
-    let xDist = xMax - xMin; 
-    let yDist = yMax - yMin; 
-    // center of plane space bounding box
-    let xCenter = (xMax + xMin)/2;
-    let yCenter = (yMax + yMin)/2;
-
-    //camera starts at plane origin (v0)
-    //move camera in plane coordinates to be centered on bounding box
-    camera.position.add(right.multiplyScalar(xCenter));
-    camera.position.add(up.multiplyScalar(yCenter));
-    //light box centered on bounding box
-    sunLight.position.set(camera.position.x + 2, camera.position.y - 2, 5);
-    sunLight.target.position.set(camera.position.x, camera.position.y, 0);
-    
-    //move camera backwards to have whole bounding box in view
-    let yFOV = 2 * Math.tan(camera.fov * Math.PI/180 / 2); //ratio of vertical view height / forwards view depth
-    let xFOV = yFOV * camera.aspect; //ratio of horizontal view width / forwards view depth
-    let dist = Math.max(
-        xDist / xFOV,
-        yDist / yFOV
-    );
-    camera.position.add(cameraViewDirection.multiplyScalar(-dist));
-
-    camera.position.lerp(c0, 0.9);
+    camera.position.set(pos.x, pos.y, pos.z);
+    camera.lookAt(camera.position.x + cameraViewDirection.x, camera.position.y + cameraViewDirection.y, camera.position.z + cameraViewDirection.z);
+    indexChanged = false;
 }
 
 //BIRD'S EYE camera behavior:
 //same as FRAMING except top down view direction that rotates, and frames all athletes
 function setCameraBird() {
-    let c0 = new THREE.Vector3().copy(camera.position);
-
-    let sumX = 0, sumY = 0, sumDist = 0;
+    let sumX = 0, sumY = 0, sumDist = 0, sumTheta = 0, t0 = race.athletesList[0].posTheta.theta;
     let count = race.athletesList.length;
     let as = [];
     for (let i = 0; i < count; i++) {
@@ -232,11 +120,18 @@ function setCameraBird() {
         sumY += v.y;
         sumDist += race.athletesList[i].dist;
         as.push(v);
+        let t = race.athletesList[i].posTheta.theta;
+        if (t0 - t > Math.PI) {
+            t += Math.PI * 2;
+        }
+        else if (t0 - t < -Math.PI) {
+            t -= Math.PI * 2;
+        }
+        sumTheta += t;
     }
 
-    let theta = race.f(4.5, sumDist / count).theta;
+    let theta = sumTheta/count; //race.f(1, sumDist / count).theta;
     
-    let cameraViewDirection = new THREE.Vector3();
     if (camera.aspect > 1) {
         //horizontal camera
         cameraViewDirection.set(Math.cos(theta), Math.sin(theta), -3);
@@ -245,70 +140,16 @@ function setCameraBird() {
         //vertical camera
         cameraViewDirection.set(Math.cos(theta - Math.PI/2), Math.sin(theta - Math.PI/2), -3);
     }
-    cameraViewDirection.normalize();
-
-    const v0 = new THREE.Vector3(sumX / count, sumY / count, 0);
-    //set camera position to plane origin
-    camera.position.copy(v0);
-
-    //set camera angle
-    camera.lookAt(v0.x + cameraViewDirection.x, v0.y + cameraViewDirection.y, v0.z + cameraViewDirection.z);
     
-    const up = new THREE.Vector3(0, 1, 0);
-    const right = new THREE.Vector3(1, 0, 0);
-    right.applyQuaternion(camera.quaternion);
-    up.applyQuaternion(camera.quaternion);
+    padding.left = 2;
+    padding.right = 2;
+    padding.top = 2;
+    padding.bottom = 2;
+    const pos = setCameraFrameNFromView(count, cameraViewDirection, padding);
 
-    //get bounding rectangle in plane space
-    let xMin = Infinity;
-    let xMax = -Infinity;
-    let yMin = Infinity;
-    let yMax = -Infinity;
-    for (let a of as) {
-        //origin of plane space is average of athletes
-        a.sub(v0);
-        //project athlete onto plane
-        a.projectOnPlane(cameraViewDirection);
-        //plane space right and up
-        let px = right.dot(a);
-        let py = up.dot(a);
-        xMin = Math.min(xMin, px);
-        xMax = Math.max(xMax, px);
-        yMin = Math.min(yMin, py);
-        yMax = Math.max(yMax, py);
-    }
-
-    //TODO: revisit left/right/top/bottom padding. Should this be in meters, pixels, etc?
-    xMin -= 1;
-    yMin -= 1;
-    xMax += 1;
-    yMax += 1;
-
-    // width and height of plane space bounding box
-    let xDist = xMax - xMin; 
-    let yDist = yMax - yMin; 
-    // center of plane space bounding box
-    let xCenter = (xMax + xMin)/2;
-    let yCenter = (yMax + yMin)/2;
-
-    //camera starts at plane origin (v0)
-    //move camera in plane coordinates to be centered on bounding box
-    camera.position.add(right.multiplyScalar(xCenter));
-    camera.position.add(up.multiplyScalar(yCenter));
-    //light box centered on bounding box
-    sunLight.position.set(camera.position.x + 2, camera.position.y - 2, 5);
-    sunLight.target.position.set(camera.position.x, camera.position.y, 0);
-    
-    //move camera backwards to have whole bounding box in view
-    let yFOV = 2 * Math.tan(camera.fov * Math.PI/180 / 2); //ratio of vertical view height / forwards view depth
-    let xFOV = yFOV * camera.aspect; //ratio of horizontal view width / forwards view depth
-    let dist = Math.max(
-        xDist / xFOV,
-        yDist / yFOV
-    );
-    camera.position.add(cameraViewDirection.multiplyScalar(-dist));
-
-    camera.position.lerp(c0, 0.9);
+    camera.position.set(pos.x, pos.y, pos.z);
+    camera.lookAt(camera.position.x + cameraViewDirection.x, camera.position.y + cameraViewDirection.y, camera.position.z + cameraViewDirection.z);
+    indexChanged = false;
 }
 
 //TAILING camera behavior:
@@ -325,7 +166,92 @@ function setCameraTailing() {
     sunLight.position.set(p.x + 2, p.y - 2, 5);
     sunLight.target.position.set(p.x, p.y, 0);
 
-    camera.position.lerp(c0, 0.9);
+    if (!indexChanged) {
+        camera.position.lerp(c0, 0.9);
+    }
+    indexChanged = false;
+}
+
+function setCameraFrameNFromView(n, cameraViewDirection, padding) {
+    cameraViewDirection.normalize();
+
+    let sumX = 0, sumY = 0;
+    let count = Math.min(race.athletesList.length, n);
+    let as = [];
+    for (let i = 0; i < count; i++) {
+        //TODO: inefficient lots of creating objects
+        let v = race.athletesList[i].posTheta.p.clone();
+        sumX += v.x;
+        sumY += v.y;
+        as.push(v);
+    }
+
+    let v0 = tempV3_1.set(sumX / count, sumY / count, 0);
+    //set camera position to plane origin
+    tempOb.position.copy(v0);
+
+    //set camera angle
+    tempOb.lookAt(v0.x + cameraViewDirection.x, v0.y + cameraViewDirection.y, v0.z + cameraViewDirection.z);
+    
+    //get camera right (x+) and up (z+) vectors from camera's perspective
+    let up = tempV3_2.set(0, 1, 0);
+    let right = tempV3_3.set(1, 0, 0);
+    right.applyQuaternion(tempOb.quaternion);
+    up.applyQuaternion(tempOb.quaternion);
+
+    //get bounding rectangle in plane space
+    let xMin = Infinity;
+    let xMax = -Infinity;
+    let yMin = Infinity;
+    let yMax = -Infinity;
+    for (let a of as) {
+        //origin of plane space is average of athletes
+        a.sub(v0);
+        //project athlete onto plane
+        a.projectOnPlane(cameraViewDirection);
+        //plane space right and up
+        let px = right.dot(a);
+        let py = up.dot(a);
+        xMin = Math.min(xMin, px);
+        xMax = Math.max(xMax, px);
+        yMin = Math.min(yMin, py);
+        yMax = Math.max(yMax, py);
+    }
+
+    //TODO: revisit left/right/top/bottom padding. Should this be in meters, pixels, etc?
+    //Should do camera view offset to accomodate left leaderboard panel?
+    xMin -= padding.left;
+    yMin -= padding.bottom;
+    xMax += padding.right;
+    yMax += padding.top;
+
+    // width and height of plane space bounding box
+    let xDist = xMax - xMin; 
+    let yDist = yMax - yMin; 
+    // center of plane space bounding box
+    let xCenter = (xMax + xMin)/2;
+    let yCenter = (yMax + yMin)/2;
+
+    //camera starts at plane origin (v0's position)
+    //move camera in plane coordinates to be centered on bounding box
+    tempOb.position.add(right.multiplyScalar(xCenter));
+    tempOb.position.add(up.multiplyScalar(yCenter));
+    //light box centered on bounding box
+    sunLight.position.set(tempOb.position.x + 4, tempOb.position.y - 4, 10);
+    sunLight.target.position.set(tempOb.position.x, tempOb.position.y, 0);
+    
+    //move camera backwards to have whole bounding box in view
+    let yFOV = 2 * Math.tan(camera.fov * Math.PI/180 / 2); //ratio of vertical view height / forwards view depth
+    let xFOV = yFOV * camera.aspect; //ratio of horizontal view width / forwards view depth
+    let dist = Math.max(
+        xDist / xFOV,
+        yDist / yFOV
+    );
+    tempOb.position.addScaledVector(cameraViewDirection, -dist);
+
+    tempV3_1.copy(tempOb.position);
+
+    return tempV3_1;
 }
 
 export const cameraFunctions = [setCameraManual, setCameraTracking, setCameraFraming, setCameraBird, setCameraTailing, setCameraFrameAll];

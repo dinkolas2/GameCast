@@ -74,6 +74,7 @@ export class Athlete {
                 child.receiveShadow = true;
                 this.meshCol1 = child;
                 this.meshCol1.pickID = this.pickID;
+                this.meshCol1.frustumCulled = false; //with the Skeleton it was sometimes getting culled incorrectly
             }
             else if (child.name === 'geoCol2') {
                 child.material = this.matCol2; 
@@ -81,6 +82,7 @@ export class Athlete {
                 child.receiveShadow = true;
                 this.meshCol2 = child;
                 this.meshCol2.pickID = this.pickID;
+                this.meshCol2.frustumCulled = false;
             }
             else if (child.name === 'geoSkin') {
                 child.material = matSkin;
@@ -88,6 +90,7 @@ export class Athlete {
                 child.receiveShadow = true;
                 this.meshSkin = child;
                 this.meshSkin.pickID = this.pickID;
+                this.meshSkin.frustumCulled = false;
             }
         }
 

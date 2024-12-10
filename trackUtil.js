@@ -183,7 +183,7 @@ export function getTrackPos800(lane, dist) {
             //straight 1 (diagonal from lane break)
             x = mapRange(dist, d0,d1, x0,x1);
             y = mapRange(dist, d0,d1, y0,y1);
-            theta = Math.atan2(x1-x0, y1-y0) + Math.PI;
+            theta = Math.PI;
         }
         else if (dist > d0 - curveLength + laneWidth/2) {
             //curve 1
@@ -210,7 +210,6 @@ export function getTrackPos800(lane, dist) {
     };
 }
 
-//TODO 1500
 export function getTrackPos1500(lane, dist) {
     const radius = radius0 + laneWidth * (lane - 0.5);
     const radius1 = radius0 + laneWidth * 0.5;
@@ -222,73 +221,47 @@ export function getTrackPos1500(lane, dist) {
 
     let x,y,theta;
 
-    if (dist > 800 - straightLength) {
-        //straight 4
-        x = centerX*2 - laneWidth * 0.5 + laneLineWidth/2;
-        y = centerY*2 + 800 - dist;
-        theta = 0;
-    }
-    else if (dist > 800 - straightLength - curve0Length) {
-        //curve 4
-        theta = (800 - dist - straightLength) / curveLengthCorrection / (radius0);
-        x = centerX - (radius1 - laneLineWidth/2) * Math.cos(theta);
-        y = (minor1 - laneLineWidth/2) * Math.sin(theta);
-        theta = -theta;
-    }
-    else if (dist > 800 - 2*straightLength - curve0Length) {
-        //straight 3
-        x = laneWidth * 0.5 - laneLineWidth/2;
-        y = dist - (800 - straightLength - curve0Length);
-        theta = Math.PI;
-    }
-    else if (dist > 800 - 2*straightLength - 2*curve0Length) {
-        //curve 3
-        theta = (800 - dist - 2*straightLength - curve0Length) / (radius0) / curveLengthCorrection;
-        x = centerX + (radius1 - laneLineWidth/2) * Math.cos(theta);
-        y = centerY*2 - (minor1 - laneLineWidth/2) * Math.sin(theta);
-        theta = Math.PI-theta;
-    }
-    else if (dist > 800 - 3*straightLength - 2*curve0Length) {
-        //straight 2
-        x = centerX*2 - laneWidth * 0.5 + laneLineWidth/2;
-        y = 800 - dist - 3*straightLength - 2*curve0Length;
-        theta = 0;
-    }
-    else if (dist > 800 - 3*straightLength - 3*curve0Length) {
-        //curve 2
-        theta = (800 - dist - 3*straightLength - 2*curve0Length) / (radius0) / curveLengthCorrection;
-        x = centerX - (radius1 - laneLineWidth/2) * Math.cos(theta);
-        y = (minor1 - laneLineWidth/2) * Math.sin(theta);
-        theta = -theta;
-    }
-    else {
-        let x0 = laneWidth * (lane - 0.5) - laneLineWidth/2;
-        let x1 = laneWidth * 0.5 - laneLineWidth/2;
-        let y0 = -straightLength;
-        let y1 = 0;
-        let diag = Math.sqrt((x1 - x0)**2 + (y1 - y0)**2);
-        let d1 = 800 - 3*straightLength - 3*curve0Length;
-        let d0 = d1 - diag;
-        if (dist > d0) {
-            //straight 1 (diagonal from lane break)
-            x = mapRange(dist, d0,d1, x0,x1);
-            y = mapRange(dist, d0,d1, y0,y1);
-            theta = Math.atan2(x1-x0, y1-y0) + Math.PI;
-        }
-        else if (dist > d0 - curveLength + laneWidth/2) {
-            //curve 1
-            theta = (d0 - dist) / (radius - laneWidth/2) / curveLengthCorrection;
-            x = centerX + (radius - laneLineWidth/2) * Math.cos(theta);
-            y = centerY*2 - (minorRadius - laneLineWidth/2) * Math.sin(theta);
-            theta = Math.PI-theta;
-        }
-        else {
-            //straight before start
-            x = centerX*2 - laneWidth * (lane - 0.5) + laneLineWidth/2;
-            y = -straightLength + d0 - curveLength - dist;
+    if (dist > 100) {
+        dist = (dist - 100 + 200) % 400 + 400;
+        if (dist > 800 - straightLength) {
+            //straight 4
+            x = centerX*2 - laneWidth * 0.5 + laneLineWidth/2;
+            y = centerY*2 + 800 - dist;
             theta = 0;
         }
+        else if (dist > 800 - straightLength - curve0Length) {
+            //curve 4
+            theta = (800 - dist - straightLength) / curveLengthCorrection / (radius0);
+            x = centerX - (radius1 - laneLineWidth/2) * Math.cos(theta);
+            y = (minor1 - laneLineWidth/2) * Math.sin(theta);
+            theta = -theta;
+        }
+        else if (dist > 800 - 2*straightLength - curve0Length) {
+            //straight 3
+            x = laneWidth * 0.5 - laneLineWidth/2;
+            y = dist - (800 - straightLength - curve0Length);
+            theta = Math.PI;
+        }
+        else if (dist > 800 - 2*straightLength - 2*curve0Length) {
+            //curve 3
+            theta = (800 - dist - 2*straightLength - curve0Length) / (radius0) / curveLengthCorrection;
+            x = centerX + (radius1 - laneLineWidth/2) * Math.cos(theta);
+            y = centerY*2 - (minor1 - laneLineWidth/2) * Math.sin(theta);
+            theta = Math.PI-theta;
+        }
     }
+    else {
+        //straight 1
+        let f = mapRange(dist, 0, 100, 0, 1);
+        let x0 = laneWidth * (lane - 0.5) - laneLineWidth/2;
+        let y0 = -100;
+        let x1 = laneWidth * 0.5 - laneLineWidth/2;
+        let y1 = 0;
+        x = mapRange(f, 0,1, x0,x1);
+        y = mapRange(f, 0,1, y0,y1);
+        theta = Math.PI;
+    }
+
 
     return {
         p:  new THREE.Vector3(
