@@ -52,7 +52,6 @@ export let shadowViewer;
 //import { trackShader } from './shaders/trackShader.js';
 //export let matTrack;
 export let matSkin;
-export let matText;
 
 //loaders
 const gltfLoader = new GLTFLoader();
@@ -234,16 +233,15 @@ function initTrack() {
 async function initAthleteModel() {
     const load = (fileName) => new Promise((resolve) => gltfLoader.load(fileName, resolve));
 
-    matSkin = new THREE.MeshPhongMaterial({ color: 0x2B2F40 });
-    matText = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+    matSkin = new THREE.MeshPhongMaterial({ transparent: true, color: 0x2B2F40 });
 
-    return load('./models/athlete3.glb').then((gltf) => gltf);
+    return load('./models/athlete.glb').then((gltf) => gltf);
 }
 
 let globalTOffset;
 function initSocket() {
     //receive race data from server
-    const socket = io('http://192.168.1.148:8082');
+    const socket = io('http://192.168.42.14:8082'); //io('http://192.168.1.148:8082');
     socket.on('tracking', (msg) => {
         if (race === undefined) {
             initRace(msg);
@@ -299,17 +297,27 @@ function initRace(msg) {
         race.athletesList.push(athlete);
     }
 
+    console.log(race.eventName);
+
     if (race.eventName.includes('100')) {
         race.f = getTrackPos100;
+        
+        initBlocks();
     }
     else if (race.eventName.includes('110')) {
         race.f = getTrackPos110;
+
+        initBlocks();
     }
     else if (race.eventName.includes('200')) {
         race.f = getTrackPos200;
+
+        initBlocks();
     }
     else if (race.eventName.includes('400')) {
         race.f = getTrackPos400;
+
+        initBlocks();
     }
     else if (race.eventName.includes('800')) {
         race.f = getTrackPos800;
@@ -449,7 +457,6 @@ function initRace(msg) {
             }
             let m = new THREE.Matrix4();
             m.identity();
-            let v = new THREE.Vector3();
             for (let im of ims) {
                 for (let i = 0; i < hurdleCount; i++) {
                     let dist = hurdle0 + i * hurdleSpacing;
@@ -512,6 +519,48 @@ function initRace(msg) {
             race.time = time;
             race.athletesList.sort((b,a) => a.dist - b.dist);
         }
+    }
+}
+
+function initBlocks() {
+    console.log('initBlocks')
+    gltfLoader.load('./models/blocks.glb', (gltf) => {
+        console.log(gltf);
+        let matBlock = new THREE.MeshPhongMaterial({ color: 0xC6C6C6 });
+        let matTread = new THREE.MeshPhongMaterial({ color: 0x643624 });
+        
+        let ims = [], imb, imt;
+        for (let child of gltf.scene.children) {
+            if (child.name === 'blocksMetal') {
+                imb = new THREE.InstancedMesh(child.geometry.clone(), matBlock, race.athletesList.length);
+                scene.add(imb);
+                ims.push(imb);
+            }
+            else if (child.name === 'blocksTreads') {
+                imt = new THREE.InstancedMesh(child.geometry.clone(), matTread, race.athletesList.length);
+                scene.add(imt);
+                ims.push(imt);
+            }
+        }
+        let m = new THREE.Matrix4();
+        m.identity();
+        for (let im of ims) {
+            for (let i = 0; i < race.athletesList.length; i++) {
+                let a = race.athletesList[i];
+                let posTheta = race.f(a.lane, -0.358);
+                m.makeRotationZ(posTheta.theta);
+                m.setPosition(posTheta.p.x, posTheta.p.y, 0);
+                im.setMatrixAt(i, m);
+                im.getMatrixAt(i, m);
+            }
+            im.instanceMatrix.needsUpdate = true;
+        }
+    });
+
+    for (let a of race.athletesList) {
+        let lane = a.lane;
+        let {p, theta} = race.f(lane, 0);
+        
     }
 }
 

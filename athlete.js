@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { race, athleteParent, matSkin, matText, leaderboardContainer } from './init.js';
+import { race, athleteParent, matSkin, leaderboardContainer } from './init.js';
 
 import { mapRange, pmod } from './util.js';
 
@@ -75,10 +75,10 @@ export class Athlete {
         //         color2.set(athleteInfo.color2.r, athleteInfo.color2.g, athleteInfo.color2.b);
         //     }
         // }
-        this.matCol1 = new THREE.MeshPhongMaterial({ color: color1 });
+        this.matCol1 = new THREE.MeshPhongMaterial({ transparent: true, color: color1 });
         this.matCol1.castShadow = true;
         this.matCol1.receiveShadow = true;
-        this.matCol2 = new THREE.MeshPhongMaterial({ color: color2 });
+        this.matCol2 = new THREE.MeshPhongMaterial({ transparent: true, color: color2 });
         this.matCol2.castShadow = true;
         this.matCol2.receiveShadow = true;
 
@@ -101,7 +101,7 @@ export class Athlete {
                 this.meshCol2.frustumCulled = false;
             }
             else if (child.name === 'geoSkin') {
-                child.material = matSkin;
+                child.material = matSkin.clone();
                 child.castShadow = true;
                 child.receiveShadow = true;
                 this.meshSkin = child;
@@ -157,14 +157,32 @@ export class Athlete {
         this.labelObjectVisible = 1;
         this.labelObject.visible = true;
         this.rankEl.classList.add('highlight');
+
+        for (let a of race.athletesList) {
+            if (this !== a) {
+                a.meshCol1.material.opacity = 0.5;
+                a.meshCol2.material.opacity = 0.5;
+                a.meshSkin.material.opacity = 0.5;
+            }
+            else {
+                a.meshCol1.material.opacity = 1;
+                a.meshCol2.material.opacity = 1;
+                a.meshSkin.material.opacity = 1;
+            }
+        }
     }
 
     unHighlight() {
         this.labelObjectVisible = 0;
         this.labelObject.visible = false;
         this.rankEl.classList.remove('highlight');
-    }
 
+        for (let a of race.athletesList) {
+            a.meshCol1.material.opacity = 1;
+            a.meshCol2.material.opacity = 1;
+            a.meshSkin.material.opacity = 1;
+        }
+    }
 
     pose(phase = null, hurdle = 0) {
         //TODO: better visibility control of labels
