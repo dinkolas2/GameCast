@@ -1,45 +1,78 @@
 body {
     margin: 0;
     padding: 0;
+
+    font-family: Arial, sans-serif;
+    font-variant: small-caps;
 }
 
-.athleteLabel {
-    font: 15px Arial, sans-serif;
+/* CSS3D Labels floating above athletes in the world */
+.labelName {
     background-color: rgba(255,255,255, 0.9);
+    font: 10pt Arial, sans-serif;
+    font-variant: small-caps;
     padding: 3px;
     border-radius: 3px;
-}
-
-.athleteRank {
-    font: 15px Arial, sans-serif;
-    background-color: rgb(49, 49, 65, 0.5);
-    border-radius: 2px;
-    padding: 3px;
-    margin: 5px;
-    color: rgb(222, 229, 238);
     text-align: center;
 }
-.highlight {
-    background-color: rgb(124, 124, 151, 0.5);
-}
-.athleteRank:nth-child(1) {
-    border: 3px outset gold;
-    margin: 2px;
-}
-.athleteRank:nth-child(2) {
-    border: 3px outset silver;
-    margin: 2px;
-}
-.athleteRank:nth-child(3) {
-    border: 3px outset rgb(206, 113, 70);
-    margin: 2px;
+.triangle {
+    width: 0px;
+    height: 0px;
+    border-style: solid;
+    border-width: 0px  10px 17.32px 10px;
+    border-color: transparent transparent rgba(255,255,255, 0.9) transparent;
+    transform: rotate(180deg) translateY(0.5px);
+    margin-left: auto;
+    margin-right: auto;
+    /* margin-top: -0.5px; */
 }
 
+/* Leaderboard container */
 .leaderboard {
     position: absolute;
     left: 0;
     top: 0;
-    width: 150px;
+    padding: 10px;
     overflow: hidden;
     background-color: rgba(100, 100, 129, 0.5);
+    display: grid;
+}
+/* Items in leaderboard */
+.athleteRank {
+    font-size: 10pt;
+    background-color: rgb(49, 49, 65, 0.5);
+    border-radius: 2px;
+    color: rgb(222, 229, 238);
+    margin: 3px;
+}
+.highlight {
+    background-color: rgb(124, 124, 151, 0.5);
+}
+.first {
+    margin: 0px;
+    border: 3px outset gold;
+}
+.second {
+    margin: 0px;
+    border: 3px outset silver;
+}
+.third {
+    margin: 0px;
+    border: 3px outset rgb(206, 113, 70);
+}
+.laneNum {
+    padding: 3px;
+    margin: 2px;
+    background-color: rgb(49, 49, 65, 0.5);
+    display: inline-block;
+    width: 11pt;
+    height: 11pt;
+    text-align: center;
+}
+.athleteName {
+    padding: 3px;
+    margin: 2px;
+    background-color: rgb(49, 49, 65, 0.5);
+    display: inline-block;
+    text-align: left;
 }

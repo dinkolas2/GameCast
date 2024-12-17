@@ -2,13 +2,13 @@
 
 import * as THREE from 'three';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
+import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 //debug view
 import { ShadowMapViewer } from 'three/addons/utils/ShadowMapViewer.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 
 import { Athlete } from './athlete.js';
 
@@ -76,7 +76,6 @@ async function init() {
     initTrack();
     athleteGLTF = await initAthleteModel();
     initSocket();
-    initLeaderboard();
 
     animate();
 }
@@ -241,7 +240,7 @@ async function initAthleteModel() {
 let globalTOffset;
 function initSocket() {
     //receive race data from server
-    const socket = io('http://192.168.42.14:8082'); //io('http://192.168.1.148:8082');
+    const socket = io('http://localhost:8082'); //io('http://192.168.42.14:8082'); //io('http://192.168.1.148:8082');
     socket.on('tracking', (msg) => {
         if (race === undefined) {
             initRace(msg);
@@ -262,9 +261,56 @@ function initSocket() {
 }
 
 function initLeaderboard() {
+    let title = document.createElement('div');
+    title.innerText = race.eventName;
+
     leaderboardContainer = document.createElement('div');
     leaderboardContainer.className = 'leaderboard';
     document.body.appendChild(leaderboardContainer);
+
+    race.athletesList.sort((a,b) => a.lane - b.lane);
+
+    for (let a of race.athletesList) {
+        const labelDiv = document.createElement('div');
+        labelDiv.className = 'athleteLabel';
+        let name = document.createElement('div');
+        name.className = 'labelName';
+        name.textContent = `${a.firstName} ${a.lastName}`;
+        labelDiv.appendChild(name);
+        const triangleDiv = document.createElement('div');
+        triangleDiv.className = 'triangle';
+        labelDiv.appendChild(triangleDiv);
+
+        a.labelObjectVisible = 0;
+        a.labelObject = new CSS2DObject(labelDiv);
+        a.labelObject.position.set(0,0,2.5);
+        a.armature.add(a.labelObject);
+        a.labelObject.visible = false;
+
+        a.rankEl = document.createElement('div');
+        a.rankEl.className = 'athleteRank';
+        
+        let laneNum = document.createElement('div');
+        laneNum.className = 'laneNum';
+        laneNum.textContent = a.lane;
+        name = document.createElement('div');
+        name.className = 'athleteName';
+        name.textContent = `${a.firstName} ${a.lastName}`;
+        a.rankEl.appendChild(laneNum);
+        a.rankEl.appendChild(name);
+
+        leaderboardContainer.appendChild(a.rankEl);
+        a.rankEl.onmouseenter = () => {
+            for (let a of race.athletesList) {
+                a.unHighlight();
+            }
+            a.highlight();
+            a.labelObjectVisible = 99999999;
+        }
+        a.rankEl.onmouseleave = () => {
+            a.unHighlight();
+        }
+    }
 }
 
 function initRace(msg) {
@@ -296,6 +342,8 @@ function initRace(msg) {
         race.athletes[id] = athlete;
         race.athletesList.push(athlete);
     }
+
+    initLeaderboard();
 
     console.log(race.eventName);
 
@@ -364,12 +412,12 @@ function initRace(msg) {
         race.setTime = (time) => {
             let msg = interpolateMsgs(time);
 
-            //phase at hurdles should be 0.4
+            //phase at hurdles should be 0.4 (based on run-cycle)
             //phase should roughly increase by 1 every 5.8m
             let phaseRatioStart = (Math.ceil(hurdle0 / 5.8 - 0.4) + 0.4) / hurdle0;
             let phaseRatio = Math.ceil(hurdleSpacing / 5.8) / hurdleSpacing;
 
-            //Set dist, posTheta
+            //Set dist, posTheta, call athlete.pose() with phase and hurdle arguments
             for (let id in race.athletes) {
                 let athlete = race.athletes[id];
                 let amsg = msg.athletes[id];
@@ -422,7 +470,13 @@ function initRace(msg) {
             }
 
             race.time = time;
-            race.athletesList.sort((b,a) => a.dist - b.dist);
+            race.athletesList.sort((b,a) => {
+                if (a.dist < b.dist) return -1;
+                else if (a.dist > b.dist) return 1;
+                else return a.rank - b.rank;
+            });
+
+            rankLabels();
         }
 
         // Add hurdle models
@@ -480,7 +534,7 @@ function initRace(msg) {
         race.setTime = (time) => {
             let msg = interpolateMsgs(time);
 
-            //Set dist, posTheta
+            //Set dist, posTheta for laned race
             for (let id in race.athletes) {
                 let athlete = race.athletes[id];
                 let amsg = msg.athletes[id];
@@ -491,7 +545,13 @@ function initRace(msg) {
             }
 
             race.time = time;
-            race.athletesList.sort((b,a) => a.dist - b.dist);
+            race.athletesList.sort((b,a) => {
+                if (a.dist < b.dist) return -1;
+                else if (a.dist > b.dist) return 1;
+                else return a.rank - b.rank;
+            });
+
+            rankLabels();
         }
     }
     else if (race.eventName.includes('800') || race.eventName.includes('1500') || race.eventName.includes('3000')) {
@@ -501,7 +561,7 @@ function initRace(msg) {
         race.setTime = (time) => {
             let msg = interpolateMsgs(time);
 
-            //Set dist, posTheta
+            //Set dist, posTheta for unlaned race
             for (let id in race.athletes) {
                 let athlete = race.athletes[id];
                 let amsg = msg.athletes[id];
@@ -517,10 +577,35 @@ function initRace(msg) {
             }
 
             race.time = time;
-            race.athletesList.sort((b,a) => a.dist - b.dist);
+            race.athletesList.sort((b,a) => {
+                if (a.dist < b.dist) return -1;
+                else if (a.dist > b.dist) return 1;
+                else return a.rank - b.rank;
+            });
+
+            rankLabels();
         }
     }
 }
+
+function rankLabels() {
+    for (let i = 0; i < race.athletesList.length; i++) {
+        let a = race.athletesList[i];
+        a.rankEl.classList.remove('first');
+        a.rankEl.classList.remove('second');
+        a.rankEl.classList.remove('third');
+        if (i === 0) {
+            a.rankEl.classList.add('first');
+        }
+        else if (i === 1) {
+            a.rankEl.classList.add('second');
+        }
+        else if (i === 2) {
+            a.rankEl.classList.add('third');
+        }
+    }
+}
+    
 
 function initBlocks() {
     console.log('initBlocks')
@@ -590,6 +675,7 @@ function interpolateMsgs(time) {
                         pathDistance: mapRange(f, 0,1, a0.pathDistance, a1.pathDistance),
                         x: mapRange(f, 0,1, a0.x, a1.x),
                         y: mapRange(f, 0,1, a0.y, a1.y),
+                        rank: a1.rank,
                     };
                 }
                 break;

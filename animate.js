@@ -69,20 +69,20 @@ export function animate() {
         }
 
         //sort athlete ranking divs
-        for (let a of race.athletesList) {
-            a.first = a.rankEl.getBoundingClientRect().top;
-        }
-        leaderboardContainer.innerHTML = "";
-        for(let a of race.athletesList) {
-            leaderboardContainer.appendChild(a.rankEl);
-        }
-        for (let a of race.athletesList) {
-            a.last = a.rankEl.getBoundingClientRect().top;
-            if (a.first !== a.last) {
-                a.inv = a.first - a.last;
-            }
-            a.rankEl.style.transform = `translateY(${Math.floor(a.inv)}px)`;
-            a.inv *= 0.9;
-        }
+        // for (let a of race.athletesList) {
+        //     a.first = a.rankEl.getBoundingClientRect().top;
+        // }
+        // leaderboardContainer.innerHTML = "";
+        // for(let a of race.athletesList) {
+        //     leaderboardContainer.appendChild(a.rankEl);
+        // }
+        // for (let a of race.athletesList) {
+        //     a.last = a.rankEl.getBoundingClientRect().top;
+        //     if (a.first !== a.last) {
+        //         a.inv = a.first - a.last;
+        //     }
+        //     a.rankEl.style.transform = `translateY(${Math.floor(a.inv)}px)`;
+        //     a.inv *= 0.9;
+        // }
     }
 }

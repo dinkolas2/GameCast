@@ -1,7 +1,5 @@
 import * as THREE from 'three';
-import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { FontLoader } from 'three/addons/loaders/FontLoader.js';
-import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { race, athleteParent, matSkin, leaderboardContainer } from './init.js';
 
 import { mapRange, pmod } from './util.js';
@@ -10,6 +8,8 @@ const loader = new FontLoader();
 
 export class Athlete {
     constructor (athleteScene, animations, athleteInfo, id) {
+        this.firstName = athleteInfo.firstName;
+        this.lastName = athleteInfo.lastName;
         this.lane = athleteInfo.lane;
         this.random = Math.random(); // per athlete randomness
         this.pickID = Number('0x'+id); // for mouse hover GPU picking
@@ -35,32 +35,6 @@ export class Athlete {
 
         this.armature = this.scene.children[0];
         this.body = this.armature.children[3];
-
-        const labelDiv = document.createElement('div');
-        labelDiv.className = 'athleteLabel';
-        labelDiv.textContent = `${athleteInfo.firstName} ${athleteInfo.lastName}`;
-
-        this.labelObjectVisible = 0;
-        this.labelObject = new CSS2DObject(labelDiv);
-        this.labelObject.position.set(0,0,2.5);
-        this.armature.add(this.labelObject);
-        this.labelObject.visible = false;
-
-        this.inv = 0; //for keeping track of translations as rankings change
-        this.rankEl = document.createElement('div');
-        this.rankEl.className = 'athleteRank';
-        this.rankEl.textContent = `${athleteInfo.firstName} ${athleteInfo.lastName}`;
-        leaderboardContainer.appendChild(this.rankEl);
-        this.rankEl.onmouseenter = () => {
-            for (let a of race.athletesList) {
-                a.unHighlight();
-            }
-            this.highlight();
-            this.labelObjectVisible = 99999999;
-        }
-        this.rankEl.onmouseleave = () => {
-            this.unHighlight();
-        }
 
         //default random colors
         let color1 = new THREE.Color( Math.random(),Math.random(),Math.random() );
