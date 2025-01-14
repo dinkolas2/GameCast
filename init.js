@@ -17,6 +17,7 @@ import { animate } from './animate.js';
 import { cameraFunctionIndex, setCameraFunctionIndex, cameraFunctions } from './camera.js';
 
 import { trackDataToGameTrack, getTrackPos100,getTrackPos110,getTrackPos200,getTrackPos400,getTrackPos800,getTrackPos1500 } from './trackUtil.js';
+import { trackDataTo200mGameTrack, buildShortTrackGetPosThetaPhi } from './trackUtil200m.js';
 import { mapRange } from './util.js';
 
 import { pmod } from './util.js';
@@ -30,6 +31,8 @@ export const LOADINGSTATES = {
     PLAYING: 2,
 }
 export const PRELOAD = 3; //seconds of data to wait for before starting animation
+
+const is200mTrack = true;
 
 //rendering
 export let camera, renderer, rendererCSS;
@@ -207,27 +210,73 @@ function initLights() {
 }
 
 function initTrack() {
-    //import track model
-    gltfLoader.load('./models/trackLines.glb', (gltf) => {
-        let child = gltf.scene.children[0];
-        let mat = new THREE.MeshPhongMaterial({ color: 0xD7D7D7 });
-        mat.depthTest = false;
-        child.material = mat;
-        child.renderOrder = -1;
-        child.receiveShadow = true;
-        child.castShadow = false;
-        scene.add(child);
-    });
-    gltfLoader.load('./models/trackGround.glb', (gltf) => {
-        let child = gltf.scene.children[0];
-        let mat = new THREE.MeshPhongMaterial({ color: 0x7A2F2D });
-        mat.depthWrite = true;
-        child.material = mat;
-        child.renderOrder = -2;
-        child.receiveShadow = true;
-        child.castShadow = false;
-        scene.add(child);
-    });
+    if (!is200mTrack) {
+        // import 400m track model
+        gltfLoader.load('./models/400mTrack/trackLines2.glb', (gltf) => {
+            let child = gltf.scene.children[0];
+            let mat = new THREE.MeshPhongMaterial({ color: 0xD7D7D7 });
+            mat.depthTest = false;
+            child.material = mat;
+            child.renderOrder = -1;
+            child.receiveShadow = true;
+            child.castShadow = false;
+            scene.add(child);
+        });
+        gltfLoader.load('./models/400mTrack/trackGround.glb', (gltf) => {
+            let child = gltf.scene.children[0];
+            let mat = new THREE.MeshPhongMaterial({ color: 0x7A2F2D });
+            mat.depthWrite = true;
+            child.material = mat;
+            child.renderOrder = -2;
+            child.receiveShadow = true;
+            child.castShadow = false;
+            scene.add(child);
+        });
+    }
+    else {
+        //import 200m track model
+        gltfLoader.load('./models/200mTrack/200mTrack.glb', (gltf) => {
+            let red = gltf.scene.getObjectByName('red');
+            let blue = gltf.scene.getObjectByName('blue');
+            let lines = gltf.scene.getObjectByName('lines');
+            // let pad = gltf.scene.getObjectByName('pad');
+            let rail = gltf.scene.getObjectByName('rail');
+            
+            let matRed = new THREE.MeshPhongMaterial({ color: 0x7A2F2D });
+            red.material = matRed;
+            red.renderOrder = -2;
+            red.receiveShadow = true;
+            red.castShadow = false;
+            scene.add(red);
+
+            let matBlue = new THREE.MeshPhongMaterial({ color: 0x3652E7 });
+            blue.material = matBlue;
+            blue.renderOrder = -2;
+            blue.receiveShadow = true;
+            blue.castShadow = false;
+            scene.add(blue);
+
+            let matLines = new THREE.MeshPhongMaterial({ color: 0xD7D7D7 });
+            matLines.depthTest = false;
+            lines.material = matLines;
+            lines.renderOrder = -1;
+            lines.receiveShadow = true;
+            lines.castShadow = false;
+            scene.add(lines);
+            
+            // let matPad = new THREE.MeshPhongMaterial({ color: 0xD7D7D7 });
+            // pad.material = matPad;
+            // pad.receiveShadow = true;
+            // pad.castShadow = true;
+            // scene.add(pad);
+
+            let matRail = new THREE.MeshPhongMaterial({ color: 0xBBBBBB });
+            rail.material = matRail;
+            rail.receiveShadow = true;
+            rail.castShadow = true;
+            scene.add(rail);
+        });
+    }
 }
 
 async function initAthleteModel() {
@@ -334,6 +383,23 @@ function initRace(msg) {
         athletesList: [],
     };
 
+    //TODO: add stagger to description from server
+    if (is200mTrack) {
+        if (msg.stagger) {
+            race.stagger = msg.stagger;
+        }
+        else {
+            if (race.raceDistance === 200) race.stagger = -1;
+            else if (race.raceDistance === 300) race.stagger = -1;
+            else if (race.raceDistance === 400) race.stagger = 2;
+            else if (race.raceDistance === 600) race.stagger = 2;
+            else if (race.raceDistance === 800) race.stagger = 3;
+            else if (race.raceDistance === 1500) race.stagger = 0;
+            else if (race.eventName.includes('Mile')) race.stagger = 2;
+            else race.stagger = 0;
+        }
+    }
+
     //Create Athlete models
     for (let id in msg.athletes) {
         let athleteResult = msg.athletes[id];
@@ -347,7 +413,7 @@ function initRace(msg) {
     initLeaderboard();
 
     console.log(race.eventName);
-
+    
     if (race.eventName.includes('100')) {
         race.f = getTrackPos100;
         
@@ -373,6 +439,11 @@ function initRace(msg) {
     }
     else if (race.eventName.includes('1500')) {
         race.f = getTrackPos1500;
+    }
+
+    //TODO: include phi in athleteModel
+    if (is200mTrack) {
+        race.f = buildShortTrackGetPosThetaPhi(race.raceDistance, race.stagger);
     }
 
     if (race.eventName.includes('Hurdles')) {
