@@ -1,10 +1,7 @@
 import * as THREE from 'three';
-import { FontLoader } from 'three/addons/loaders/FontLoader.js';
-import { race, athleteParent, matSkin, leaderboardContainer } from './init.js';
+import { race, athleteParent, matSkin } from './init.js';
 
 import { mapRange, pmod } from './util.js';
-
-const loader = new FontLoader();
 
 export class Athlete {
     constructor (athleteScene, animations, athleteInfo, id) {
@@ -165,7 +162,7 @@ export class Athlete {
             this.unHighlight();
         }
 
-        let strideMult = mapRange(this.random, 0,1, 0.9,1.1);
+        let strideMult = mapRange(this.random, 0,1, 0.8,1.2);
         for (let k in this.actions) {
             this.actions[k].setEffectiveWeight(0);
         }

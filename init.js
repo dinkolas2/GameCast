@@ -52,6 +52,7 @@ export let shadowViewer;
 //import { trackShader } from './shaders/trackShader.js';
 //export let matTrack;
 export let matSkin;
+export let blockIMs;
 
 //loaders
 const gltfLoader = new GLTFLoader();
@@ -614,22 +615,23 @@ function initBlocks() {
         let matBlock = new THREE.MeshPhongMaterial({ color: 0xC6C6C6 });
         let matTread = new THREE.MeshPhongMaterial({ color: 0x643624 });
         
-        let ims = [], imb, imt;
+        blockIMs = [];
+        let imb, imt;
         for (let child of gltf.scene.children) {
             if (child.name === 'blocksMetal') {
                 imb = new THREE.InstancedMesh(child.geometry.clone(), matBlock, race.athletesList.length);
                 scene.add(imb);
-                ims.push(imb);
+                blockIMs.push(imb);
             }
             else if (child.name === 'blocksTreads') {
                 imt = new THREE.InstancedMesh(child.geometry.clone(), matTread, race.athletesList.length);
                 scene.add(imt);
-                ims.push(imt);
+                blockIMs.push(imt);
             }
         }
         let m = new THREE.Matrix4();
         m.identity();
-        for (let im of ims) {
+        for (let im of blockIMs) {
             for (let i = 0; i < race.athletesList.length; i++) {
                 let a = race.athletesList[i];
                 let posTheta = race.f(a.lane, -0.358);

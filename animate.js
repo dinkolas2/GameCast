@@ -1,4 +1,4 @@
-import { race, renderer, rendererCSS, scene, camera, picker, mouse, clock, helpers, LOADINGSTATES, PRELOAD, athleteParent, leaderboardContainer } from './init.js';
+import { race, renderer, rendererCSS, scene, camera, picker, mouse, clock, helpers, LOADINGSTATES, PRELOAD, athleteParent, leaderboardContainer, blockIMs } from './init.js';
 import { cameraFunctions, cameraFunctionIndex } from './camera.js';
 
 let shouldPickObject = (ob) => Boolean(ob.pickID);
@@ -10,6 +10,11 @@ export function animate() {
     const delta = clock.getDelta();
 
     if (race) {
+        if (race.athletesList[0].dist > 200 && blockIMs[0].visible) {
+            for (let blockIM of blockIMs) {
+                blockIM.visible = false;
+            }
+        }
         if (race.loadingState === LOADINGSTATES.INIT) {
             race.setTime(race.time);
             if (race.maxTime >= race.time + PRELOAD) {
