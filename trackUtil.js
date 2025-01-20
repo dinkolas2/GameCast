@@ -273,7 +273,7 @@ export function getTrackPos1500(lane, dist) {
     };
 }
 
-export function trackDataToGameTrack(x,y) {
+export function trackDataTo400mGameTrack(x,y) {
     return new THREE.Vector3(
         (y - 2*39.3447 + 1) * 1.08,
         -x - 2*42.2861,

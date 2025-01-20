@@ -1,4 +1,4 @@
-import { race, renderer, rendererCSS, scene, camera, picker, mouse, clock, helpers, LOADINGSTATES, PRELOAD, athleteParent, leaderboardContainer, blockIMs } from './init.js';
+import { race, renderer, rendererCSS, scene, camera, picker, mouse, clock, helpers, LOADINGSTATES, PRELOAD, athleteParent, leaderboardContainer, blockIMs, is200mTrack } from './init.js';
 import { cameraFunctions, cameraFunctionIndex } from './camera.js';
 
 let shouldPickObject = (ob) => Boolean(ob.pickID);
@@ -10,7 +10,7 @@ export function animate() {
     const delta = clock.getDelta();
 
     if (race) {
-        if (race.athletesList[0].dist > 200 && blockIMs[0].visible) {
+        if (race.athletesList[0].dist > (is200mTrack ? 100 : 200) && blockIMs[0].visible) {
             for (let blockIM of blockIMs) {
                 blockIM.visible = false;
             }

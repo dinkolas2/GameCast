@@ -210,7 +210,7 @@ export function buildShortTrackGetPosThetaPhi(total, stagger) {
 }
 
 export function trackDataTo200mGameTrack(x,y) {
-    //Raycast to model?
+    //TODO: Raycast to model for z value?
     return new THREE.Vector3(
         x,
         y,

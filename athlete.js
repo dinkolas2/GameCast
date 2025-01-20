@@ -216,10 +216,12 @@ export class Athlete {
             this.armature.rotation.set(0,0,Math.atan2(p.x - pp.x, pp.y - p.y, ));
             return;
         }
-
+        
         this.mixer.update(0);
-        let {p,theta} = this.posTheta;
+        let p = this.posTheta.p;
+        let theta = this.posTheta.theta;
+        let phi = this.posTheta.phi ? this.posTheta.phi : 0;
         this.armature.position.set(p.x, p.y, p.z);
-        this.armature.rotation.set(0,0,theta);
+        this.armature.rotation.set(0,phi,theta,'ZYX');
     }
 }

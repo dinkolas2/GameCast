@@ -16,7 +16,7 @@ import { animate } from './animate.js';
 
 import { cameraFunctionIndex, setCameraFunctionIndex, cameraFunctions } from './camera.js';
 
-import { trackDataToGameTrack, getTrackPos100,getTrackPos110,getTrackPos200,getTrackPos400,getTrackPos800,getTrackPos1500 } from './trackUtil.js';
+import { trackDataTo400mGameTrack, getTrackPos100,getTrackPos110,getTrackPos200,getTrackPos400,getTrackPos800,getTrackPos1500 } from './trackUtil.js';
 import { trackDataTo200mGameTrack, buildShortTrackGetPosThetaPhi } from './trackUtil200m.js';
 import { mapRange } from './util.js';
 
@@ -32,7 +32,7 @@ export const LOADINGSTATES = {
 }
 export const PRELOAD = 3; //seconds of data to wait for before starting animation
 
-const is200mTrack = true;
+export const is200mTrack = true;
 
 //rendering
 export let camera, renderer, rendererCSS;
@@ -311,12 +311,13 @@ function initSocket() {
 }
 
 function initLeaderboard() {
-    let title = document.createElement('div');
-    title.innerText = race.eventName;
-
     leaderboardContainer = document.createElement('div');
     leaderboardContainer.className = 'leaderboard';
     document.body.appendChild(leaderboardContainer);
+
+    const eventNameDiv = document.createElement('h2');
+    eventNameDiv.innerText = race.eventName;
+    leaderboardContainer.appendChild(eventNameDiv);
 
     race.athletesList.sort((a,b) => a.lane - b.lane);
 
@@ -382,6 +383,8 @@ function initRace(msg) {
         athletes: {},
         athletesList: [],
     };
+
+    race.trackDataToGameTrack = is200mTrack ? trackDataTo200mGameTrack : trackDataTo400mGameTrack;
 
     //TODO: add stagger to description from server
     if (is200mTrack) {
@@ -498,7 +501,6 @@ function initRace(msg) {
 
                 let phase, hurdle;
 
-                
                 let posTheta = race.f(athlete.lane, amsg.pathDistance); 
                 
                 if (amsg.pathDistance < hurdle0) {
@@ -527,8 +529,8 @@ function initRace(msg) {
                     hurdle = Math.sqrt(Math.max(0, 1/2 * (2 - Math.abs(amsg.pathDistance - (hurdle0 + (hurdleCount-1) * hurdleSpacing)))));
                 }
                 else {
-                    //TODO: after race use x,y data
-                    let p = trackDataToGameTrack(amsg.x, amsg.y);
+                    //after finish use x,y data
+                    let p = race.trackDataToGameTrack(amsg.x, amsg.y);
                     posTheta.p = p;
                     
                     athlete.posTheta = posTheta;
@@ -611,8 +613,16 @@ function initRace(msg) {
                 let athlete = race.athletes[id];
                 let amsg = msg.athletes[id];
 
+                let posTheta = race.f(athlete.lane, amsg.pathDistance);
                 athlete.dist = amsg.pathDistance;
-                athlete.posTheta = race.f(athlete.lane, amsg.pathDistance); //TODO: before and after race use x,y data?
+
+                //after finish use x,y data
+                if (amsg.pathDistance >= race.raceDistance) {
+                    posTheta.p = race.trackDataToGameTrack(amsg.x, amsg.y);
+                    posTheta.phi = 0;
+                }
+
+                athlete.posTheta = posTheta;
                 athlete.pose();
             }
 
@@ -633,18 +643,16 @@ function initRace(msg) {
         race.setTime = (time) => {
             let msg = interpolateMsgs(time);
 
-            //Set dist, posTheta for unlaned race
+            //Set dist, posTheta 
+            //use x,y data for unlaned race
             for (let id in race.athletes) {
                 let athlete = race.athletes[id];
                 let amsg = msg.athletes[id];
 
-                athlete.dist = amsg.pathDistance;
-                //TODO: before and after race use x,y data
+                athlete.dist = amsg.pathDistance
                 let posTheta = race.f(athlete.lane, amsg.pathDistance);
-                athlete.posTheta = {
-                    p: trackDataToGameTrack(amsg.x, amsg.y),
-                    theta: posTheta.theta
-                };
+                posTheta.p = race.trackDataToGameTrack(amsg.x, amsg.y);
+                athlete.posTheta = posTheta;
                 athlete.pose();
             }
 
@@ -706,8 +714,8 @@ function initBlocks() {
             for (let i = 0; i < race.athletesList.length; i++) {
                 let a = race.athletesList[i];
                 let posTheta = race.f(a.lane, -0.358);
-                m.makeRotationZ(posTheta.theta);
-                m.setPosition(posTheta.p.x, posTheta.p.y, 0);
+                m.makeRotationFromEuler(new THREE.Euler(0, posTheta.phi, posTheta.theta));
+                m.setPosition(posTheta.p.x, posTheta.p.y, posTheta.p.z);
                 im.setMatrixAt(i, m);
                 im.getMatrixAt(i, m);
             }
@@ -746,6 +754,7 @@ function interpolateMsgs(time) {
                     let a1 = msg1.athletes[id];
                     msg.athletes[id] = {
                         pathDistance: mapRange(f, 0,1, a0.pathDistance, a1.pathDistance),
+                        fromRail: mapRange(f, 0,1, a0.fromRail, a1.fromRail),
                         x: mapRange(f, 0,1, a0.x, a1.x),
                         y: mapRange(f, 0,1, a0.y, a1.y),
                         rank: a1.rank,
