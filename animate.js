@@ -1,5 +1,6 @@
 import { race, renderer, rendererCSS, scene, camera, picker, mouse, clock, helpers, LOADINGSTATES, PRELOAD, athleteParent, leaderboardContainer, blockIMs, is200mTrack } from './init.js';
 import { cameraFunctions, cameraFunctionIndex } from './camera.js';
+import { mapRange } from './util.js';
 
 let shouldPickObject = (ob) => Boolean(ob.pickID);
 let picked = null;
@@ -8,6 +9,7 @@ export function animate() {
     requestAnimationFrame(animate);
 
     const delta = clock.getDelta();
+    const time = clock.getElapsedTime();
 
     if (race) {
         if (race.athletesList[0].dist > (is200mTrack ? 100 : 200) && blockIMs[0].visible) {
@@ -27,19 +29,19 @@ export function animate() {
         else if (race.loadingState === LOADINGSTATES.AWAITING) {
             if (race.maxTime >= race.time + delta + PRELOAD) {
                 race.loadingState = LOADINGSTATES.PLAYING;
-                race.setTime(race.time + delta);
+                race.setTime(race.time, delta);
             }
         }
         else if (race.loadingState === LOADINGSTATES.PLAYING) {
             if (race.maxTime >= race.time + delta) {
-                race.setTime(race.time + delta);
+                race.setTime(race.time, delta);
             }
             else {
                 race.loadingState = LOADINGSTATES.AWAITING;
             }
         }
 
-        cameraFunctions[cameraFunctionIndex]();
+        cameraFunctions[cameraFunctionIndex](time);
 
         for (let h of helpers) {
             h.update();
@@ -47,16 +49,12 @@ export function animate() {
     }
     else {
         //waiting for race data to come in
-
-        cameraFunctions[0]();
+        //camera flies around, screen saver style
+        cameraFunctions[7](time);
     }
-    
 
     renderer.render(scene, camera);
     rendererCSS.render(scene, camera);
-
-    // shadowViewer.render(renderer);
-
 
     if (race) {
         //mouse hover highlight athletes GPU picking
@@ -72,22 +70,5 @@ export function animate() {
         else {
             picked = null;
         }
-
-        //sort athlete ranking divs
-        // for (let a of race.athletesList) {
-        //     a.first = a.rankEl.getBoundingClientRect().top;
-        // }
-        // leaderboardContainer.innerHTML = "";
-        // for(let a of race.athletesList) {
-        //     leaderboardContainer.appendChild(a.rankEl);
-        // }
-        // for (let a of race.athletesList) {
-        //     a.last = a.rankEl.getBoundingClientRect().top;
-        //     if (a.first !== a.last) {
-        //         a.inv = a.first - a.last;
-        //     }
-        //     a.rankEl.style.transform = `translateY(${Math.floor(a.inv)}px)`;
-        //     a.inv *= 0.9;
-        // }
     }
 }

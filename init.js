@@ -23,7 +23,7 @@ import { mapRange } from './util.js';
 import { pmod } from './util.js';
 
 import { GPUPicker } from './GPUPicker.js';
-import { io } from "https://cdn.socket.io/4.7.5/socket.io.esm.min.js";
+import { io } from "./socketio.js";
 //loading
 export const LOADINGSTATES = {
     INIT: 0,
@@ -32,6 +32,8 @@ export const LOADINGSTATES = {
 }
 export const PRELOAD = 3; //seconds of data to wait for before starting animation
 
+//TODO: add this and number of staggered turns to server
+//  make an api to request a description of the track from the server
 export const is200mTrack = true;
 
 //rendering
@@ -73,10 +75,10 @@ export let race;
 export let DEBUG = false;
 
 async function init() {
-
     initIO();
     initRender();
     initLights();
+    initTitle();
     initTrack();
     athleteGLTF = await initAthleteModel();
     initSocket();
@@ -96,33 +98,21 @@ function initIO() {
         }
         else if (e.code === 'Numpad0') {
             setCameraFunctionIndex(0); //Manual
-            camera.fov = 20;
-            camera.updateProjectionMatrix();
         }
         else if (e.code === 'Numpad5') {
             setCameraFunctionIndex(1); //Tracking
-            camera.fov = 20;
-            camera.updateProjectionMatrix();
         }
         else if (e.code === 'Numpad6') {
             setCameraFunctionIndex(2); //Framing
-            camera.fov = 5;
-            camera.updateProjectionMatrix();
         }
         else if (e.code === 'Numpad8') {
             setCameraFunctionIndex(3); //Bird's Eye
-            camera.fov = 15;
-            camera.updateProjectionMatrix();
         }
         else if (e.code === 'Numpad2') {
             setCameraFunctionIndex(4); //Tailing
-            camera.fov = 20;
-            camera.updateProjectionMatrix();
         }
         else if (e.code === 'Numpad4') {
             setCameraFunctionIndex(5); //Frame All
-            camera.fov = 5;
-            camera.updateProjectionMatrix();
         }
     };
 }
@@ -135,7 +125,6 @@ function initRender() {
     clock = new THREE.Clock();
     clock.start();
 
-    //TODO: check if antialiasing is too harmful for performance
     renderer = new THREE.WebGLRenderer( {antialias: true} ); 
     renderer.setPixelRatio( window.devicePixelRatio );
     renderer.setSize( window.innerWidth, window.innerHeight );
@@ -148,7 +137,7 @@ function initRender() {
     rendererCSS.domElement.style.top = '0px';
     document.body.appendChild( rendererCSS.domElement );
 
-    camera = new THREE.PerspectiveCamera(15, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set( 10,5,5 );
     camera.lookAt( 0,0,0 );
 
@@ -284,7 +273,7 @@ async function initAthleteModel() {
 
     matSkin = new THREE.MeshPhongMaterial({ transparent: true, color: 0x2B2F40 });
 
-    return load('./models/athlete.glb').then((gltf) => gltf);
+    return load('./models/athlete3.glb').then((gltf) => gltf);
 }
 
 let globalTOffset;
@@ -299,7 +288,7 @@ function initSocket() {
             //TODO: this is kinda weird maybe should fix on server side?
             //these two if statements allow raceTime to keep counting up after the first place runner
             //has finished, because currently raceTime stops counting after first place finishes
-            if (globalTOffset === undefined && msg.raceTime !== 0) {
+            if (msg.raceTime !== msg.pRaceTime) {
                 globalTOffset = msg.raceTime - msg.globalTime;
             }
             if (msg.raceTime === msg.pRaceTime && msg.raceTime > 0 && globalTOffset !== undefined) {
@@ -308,12 +297,27 @@ function initSocket() {
             updateRace(msg);
         }
     });
+    socket.on('results', (msg) => {
+        if (race === undefined) {
+            initRace(msg);
+        }
+
+        race.resultsOfficial = true;
+    });
 }
 
-function initLeaderboard() {
+function initTitle() {
     leaderboardContainer = document.createElement('div');
     leaderboardContainer.className = 'leaderboard';
     document.body.appendChild(leaderboardContainer);
+
+    const loadingText = document.createElement('h2');
+    loadingText.innerText = 'Awaiting Race Data';
+    leaderboardContainer.appendChild(loadingText);
+}
+
+function initLeaderboard() {
+    leaderboardContainer.innerHTML = '';
 
     const eventNameDiv = document.createElement('h2');
     eventNameDiv.innerText = race.eventName;
@@ -365,11 +369,12 @@ function initLeaderboard() {
 }
 
 function initRace(msg) {
+    setCameraFunctionIndex(5); //TODO: more automatic camera changes
     //The race object holds:
     // -The race data as it comes in from the server
     // -The state of what time slice we are viewing the race at, 
     //      whether we are playing/awaiting data
-    // -The athletes (accessible by list sorted by rank at the current race.time, and by ID)
+    // -The athletes (accessible by list sorted by rank at the current race.time, and by ID in a dictionary)
 
     //race basics
     race = {
@@ -382,10 +387,12 @@ function initRace(msg) {
         msgs: [msg],
         athletes: {},
         athletesList: [],
+        resultsOfficial: false,
     };
 
+    //TODO: make an api to request a description of the track from the server
     race.trackDataToGameTrack = is200mTrack ? trackDataTo200mGameTrack : trackDataTo400mGameTrack;
-
+    
     //TODO: add stagger to description from server
     if (is200mTrack) {
         if (msg.stagger) {
@@ -414,8 +421,6 @@ function initRace(msg) {
     }
 
     initLeaderboard();
-
-    console.log(race.eventName);
     
     if (race.eventName.includes('100')) {
         race.f = getTrackPos100;
@@ -444,7 +449,6 @@ function initRace(msg) {
         race.f = getTrackPos1500;
     }
 
-    //TODO: include phi in athleteModel
     if (is200mTrack) {
         race.f = buildShortTrackGetPosThetaPhi(race.raceDistance, race.stagger);
     }
@@ -484,7 +488,8 @@ function initRace(msg) {
 
         let lastHurdle = hurdle0 + hurdleSpacing * (hurdleCount - 1);
 
-        race.setTime = (time) => {
+        race.setTime = (time, delta=0) => {
+            time = time + delta;
             let msg = interpolateMsgs(time);
 
             //phase at hurdles should be 0.4 (based on run-cycle)
@@ -529,18 +534,26 @@ function initRace(msg) {
                     hurdle = Math.sqrt(Math.max(0, 1/2 * (2 - Math.abs(amsg.pathDistance - (hurdle0 + (hurdleCount-1) * hurdleSpacing)))));
                 }
                 else {
+                    //TODO: after race finish, line up in order of finish.
+                    //Once results are official go to podiums.
+                    // if (!race.resultsOfficial) {
+
+                    // }
+                    // else {
+                        
+                    // }
                     //after finish use x,y data
                     let p = race.trackDataToGameTrack(amsg.x, amsg.y);
                     posTheta.p = p;
                     
                     athlete.posTheta = posTheta;
-                    athlete.pose();
+                    athlete.pose(delta);
                     continue;
                 }
                 phase = pmod(phase, 1);
                 posTheta.p.z += hurdle * (hurdleHeight - 0.840); //hurdle animation was animated at height 0.840, correct height of leap
                 athlete.posTheta = posTheta;
-                athlete.pose(phase, hurdle);
+                athlete.poseHurdle(delta, phase, hurdle);
             }
 
             race.time = time;
@@ -605,25 +618,62 @@ function initRace(msg) {
         //Laned Races
 
         //requires that time is in range [race.minTime, race.maxTime]
-        race.setTime = (time) => {
+        race.setTime = (time, delta=0) => {
+            time = time + delta;
             let msg = interpolateMsgs(time);
 
             //Set dist, posTheta for laned race
             for (let id in race.athletes) {
                 let athlete = race.athletes[id];
                 let amsg = msg.athletes[id];
-
-                let posTheta = race.f(athlete.lane, amsg.pathDistance);
-                athlete.dist = amsg.pathDistance;
-
-                //after finish use x,y data
-                if (amsg.pathDistance >= race.raceDistance) {
-                    posTheta.p = race.trackDataToGameTrack(amsg.x, amsg.y);
-                    posTheta.phi = 0;
+                
+                if (amsg.pathDistance < race.raceDistance) {
+                    let posTheta = race.f(athlete.lane, amsg.pathDistance);
+                    athlete.dist = amsg.pathDistance;
+                    athlete.speed = amsg.speed;
+                    athlete.finishTime = time;
+                    athlete.posTheta = posTheta;
+                    athlete.pose(delta);
                 }
+                else {
+                    // After race finish, line up in order of finish.
+                    // Once results are official go to podiums.
+                    if (!race.resultsOfficial) {
+                        //line up in unofficial finish order
+                        const finishTime = athlete.finishTime;
+                        const finishSpeed = athlete.speed;
+                        
+                        const t = time - finishTime;
+                        const rankStagger = athlete.rank === 1 ? 50 : (athlete.rank === 2 ? 40 : (athlete.rank === 3 ? 30 : (10 + 5*athlete.random)));
 
-                athlete.posTheta = posTheta;
-                athlete.pose();
+                        //quadratic curve with:
+                        // m=finishSpeed @ t=0
+                        // dist=rankStagger @ m=0
+                        const d1 = rankStagger;
+                        const b = finishSpeed;
+                        const t1 = 2 * d1 / b;
+                        const a = -b / (2 * t1);
+                        const d = Math.max(0, a*t*t + b*t);
+
+
+                        if (t < t1) {
+                            athlete.dist = race.raceDistance + d;
+                            let posTheta = race.f(athlete.lane, athlete.dist);
+                            athlete.posTheta = posTheta;
+                            athlete.pose(delta);
+                        }
+                        else {
+                            athlete.dist = race.raceDistance + rankStagger;
+                            let posTheta = race.f(athlete.lane, athlete.dist);
+                            athlete.posTheta = posTheta;
+                            athlete.pose(delta);
+                        }
+                    }
+                    else {
+                        //official results, go to podiums
+                        
+                    }
+                }
             }
 
             race.time = time;
@@ -633,6 +683,10 @@ function initRace(msg) {
                 else return a.rank - b.rank;
             });
 
+            for (let i = 0; i < race.athletesList.length; i++) {
+                race.athletesList[i].rank = i + 1;
+            }
+
             rankLabels();
         }
     }
@@ -640,7 +694,8 @@ function initRace(msg) {
         //Un-laned races
 
         //requires that time is in range [race.minTime, race.maxTime]
-        race.setTime = (time) => {
+        race.setTime = (time, delta=0) => {
+            time = time + delta;
             let msg = interpolateMsgs(time);
 
             //Set dist, posTheta 
@@ -650,10 +705,27 @@ function initRace(msg) {
                 let amsg = msg.athletes[id];
 
                 athlete.dist = amsg.pathDistance
-                let posTheta = race.f(athlete.lane, amsg.pathDistance);
-                posTheta.p = race.trackDataToGameTrack(amsg.x, amsg.y);
-                athlete.posTheta = posTheta;
-                athlete.pose();
+                
+
+                if (athlete.dist < race.raceDistance) {
+                    athlete.speed = amsg.speed;
+                    let posTheta = race.f(athlete.lane, amsg.pathDistance);
+                    posTheta.p = race.trackDataToGameTrack(amsg.x, amsg.y);
+                    athlete.posTheta = posTheta;
+                    athlete.pose(delta);
+                }
+                else {
+                    //TODO: after race finish, line up in order of finish.
+                    //Once results are official go to podiums.
+                    if (!race.resultsOfficial) {
+                        //line up in finish order
+                        
+                    }
+                    else {
+                        //go to podiums
+                        
+                    }
+                }
             }
 
             race.time = time;
@@ -688,9 +760,7 @@ function rankLabels() {
     
 
 function initBlocks() {
-    console.log('initBlocks')
     gltfLoader.load('./models/blocks.glb', (gltf) => {
-        console.log(gltf);
         let matBlock = new THREE.MeshPhongMaterial({ color: 0xC6C6C6 });
         let matTread = new THREE.MeshPhongMaterial({ color: 0x643624 });
         
@@ -714,7 +784,7 @@ function initBlocks() {
             for (let i = 0; i < race.athletesList.length; i++) {
                 let a = race.athletesList[i];
                 let posTheta = race.f(a.lane, -0.358);
-                m.makeRotationFromEuler(new THREE.Euler(0, posTheta.phi, posTheta.theta));
+                m.makeRotationFromEuler(new THREE.Euler(posTheta.phi, 0, posTheta.theta));
                 m.setPosition(posTheta.p.x, posTheta.p.y, posTheta.p.z);
                 im.setMatrixAt(i, m);
                 im.getMatrixAt(i, m);
@@ -732,17 +802,19 @@ function initBlocks() {
 
 //find relevant race.msgs, interpolate them to create msg at race.time
 //requires that time is in range [race.minTime, race.maxTime]
+let FUCKUS = 0;
 function interpolateMsgs(time) {
-    let msg;
+    let msg, msg0, msg1;
+    let i = 0;
     //TODO: binary search by msg.time, or even better search out from previous index
-    for (let i = 0; i < race.msgs.length - 1; i++) {
-        let msg0 = race.msgs[i];
+    for (i = 0; i < race.msgs.length - 1; i++) {
+        msg0 = race.msgs[i];
         if (time === msg0.raceTime) {
             msg = msg0;
             break;
         }
         else if (msg0.raceTime < time) {
-            let msg1 = race.msgs[i+1];
+            msg1 = race.msgs[i+1];
             if (time < msg1.raceTime) {
                 let f = mapRange(time, msg0.raceTime,msg1.raceTime, 0,1);
                 msg = {
@@ -758,23 +830,38 @@ function interpolateMsgs(time) {
                         x: mapRange(f, 0,1, a0.x, a1.x),
                         y: mapRange(f, 0,1, a0.y, a1.y),
                         rank: a1.rank,
+                        time: mapRange(f, 0,1, a0.time, a1.time), //TODO: stop sending this from server
+                        speed: mapRange(f, 0,1, a0.speed, a1.speed),
                     };
                 }
                 break;
-                //TODO: assign ranks by sorting by pathDistance
             }
         }
     }
     if (msg === undefined) {
         msg = race.msgs[race.msgs.length - 1];
     }
+
     return msg;
 }
 
 function updateRace(msg) {
-    race.msgs.push(msg); //TODO: insert into list in case msgs come out of order
+    race.msgs.push(msg); 
+    race.msgs.sort((a,b) => a.raceTime - b.raceTime);//TODO: insert into list instead of sorting
     race.minTime = Math.min(race.minTime, msg.raceTime);
     race.maxTime = Math.max(race.maxTime, msg.raceTime);
+
+    let allFinished = true;    
+    for (let k in msg.athletes) {
+        let a = msg.athletes[k];
+        if (a.pathDistance < race.raceDistance) {
+            allFinished = false;
+            return;
+        }
+    }
+    if (allFinished) {
+        race.maxTime = Infinity;
+    }
 }
 
 init();

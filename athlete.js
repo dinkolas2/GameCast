@@ -10,6 +10,7 @@ export class Athlete {
         this.lane = athleteInfo.lane;
         this.random = Math.random(); // per athlete randomness
         this.pickID = Number('0x'+id); // for mouse hover GPU picking
+        this.id = id;
 
         this.scene = athleteScene;
         this.mixer = new THREE.AnimationMixer(this.scene);
@@ -18,11 +19,22 @@ export class Athlete {
         for (let animation of this.animations) {
             if (animation.name === 'sprint_5.8') {
                 this.actions.sprint = this.mixer.clipAction(animation);
+                this.actions.sprint.speed = 5.8 / this.actions.sprint.getClip().duration;
                 this.actions.sprint.play();
             }
             else if (animation.name === 'lowsprint_2.5') {
                 this.actions.lowsprint = this.mixer.clipAction(animation);
                 this.actions.lowsprint.play();
+            }
+            else if (animation.name === 'walk_1') {
+                this.actions.walkslow = this.mixer.clipAction(animation);
+                this.actions.walkslow.speed = 1 / this.actions.walkslow.getClip().duration;
+                this.actions.walkslow.play();
+            }
+            else if (animation.name === 'walk_2.3') {
+                this.actions.walk = this.mixer.clipAction(animation);
+                this.actions.walk.speed = 2.3 / this.actions.walk.getClip().duration;
+                this.actions.walk.play();
             }
             else {
                 this.actions[animation.name] = this.mixer.clipAction(animation);
@@ -52,7 +64,7 @@ export class Athlete {
         this.matCol2 = new THREE.MeshPhongMaterial({ transparent: true, color: color2 });
         this.matCol2.castShadow = true;
         this.matCol2.receiveShadow = true;
-
+        
         for (let child of this.armature.children) {
             //find meshes in children of armature
             if (child.name === 'geoCol1') {
@@ -92,6 +104,7 @@ export class Athlete {
             theta: 0,
         }
         this._dist = 0;
+        this.speed = 0;
 
         //morph targets for gender
         if (race.eventName.includes('Women')) {
@@ -104,6 +117,8 @@ export class Athlete {
             this.meshCol2.morphTargetInfluences[0] = 1;
             this.meshSkin.morphTargetInfluences[0] = 1;
         }
+
+        
     }
 
     get dist() {
@@ -155,14 +170,17 @@ export class Athlete {
         }
     }
 
-    pose(phase = null, hurdle = 0) {
+    updateLabel() {
         //TODO: better visibility control of labels
         this.labelObjectVisible *= 0.999;
         if (0 < this.labelObjectVisible && this.labelObjectVisible < 0.5) {
             this.unHighlight();
         }
+    }
 
-        let strideMult = mapRange(this.random, 0,1, 0.8,1.2);
+    poseHurdle(delta, phase, hurdle=0) {
+        this.updateLabel();
+        
         for (let k in this.actions) {
             this.actions[k].setEffectiveWeight(0);
         }
@@ -171,50 +189,148 @@ export class Athlete {
             let f = mapRange(this.dist, 0,0.2, 0,1);
             this.actions.set.setEffectiveWeight(1 - f);
             this.actions.lowsprint.setEffectiveWeight(f);
-            
+        }
+        else if (this.dist < 20) {
+            let f = mapRange(this.dist, 0.2,20, 0,1);
+            this.actions.lowsprint.setEffectiveWeight((1 - f) * (1 - hurdle));
+            this.actions.lowsprint.time = phase * this.actions.lowsprint.getClip().duration;
+            this.actions.sprint.setEffectiveWeight(f * (1 - hurdle));
+            this.actions.sprint.time = phase * this.actions.sprint.getClip().duration;
+            this.actions.hurdle.setEffectiveWeight(hurdle);
+            this.actions.hurdle.time = phase * this.actions.hurdle.getClip().duration;
+        }
+        else if (this.dist < race.raceDistance) {
+            this.actions.sprint.setEffectiveWeight(1 - hurdle);
+            this.actions.sprint.time = phase * this.actions.sprint.getClip().duration;
+            this.actions.hurdle.setEffectiveWeight(hurdle);
+            this.actions.hurdle.time = phase * this.actions.hurdle.getClip().duration;
+        }
+        else {
+            let pp = this.pposTheta.p;
+            let p = this.posTheta.p;
+            this.actions.sprint.setEffectiveWeight(1 - hurdle);
+            this.actions.sprint.time = phase * this.actions.sprint.getClip().duration;
+            this.actions.hurdle.setEffectiveWeight(hurdle);
+            this.actions.hurdle.time = phase * this.actions.hurdle.getClip().duration;
+            this.mixer.update(0);
+            this.armature.position.set(p.x, p.y, p.z);
+            this.armature.rotation.set(0,0,Math.atan2(p.x - pp.x, pp.y - p.y, ));
+            return;
+        }
+        
+        this.mixer.update(0);
+        let p = this.posTheta.p;
+        let theta = this.posTheta.theta;
+        let phi = this.posTheta.phi ? this.posTheta.phi : 0;
+        this.armature.position.set(p.x, p.y, p.z);
+        this.armature.rotation.set(0,phi,theta,'ZYX');
+    }
+    
+
+    pose(delta) {
+        this.updateLabel();
+
+        let strideMult = mapRange(this.random, 0,1, 0.8,1.2);
+
+        for (let k in this.actions) {
+            this.actions[k].setEffectiveWeight(0);
+        }
+        
+        if (this.dist < 0.2) {
+            let f = mapRange(this.dist, 0,0.2, 0,1);
+            this.actions.set.setEffectiveWeight(1 - f);
+            this.actions.lowsprint.setEffectiveWeight(f);
         }
         else if (this.dist < 20) {
             let f = mapRange(this.dist, 0.2,20, 0,1);
             let distPerLoop = mapRange(f, 0,1, 2.5,5.8);
             let distTraveled = this.dist-this.pdist;
             let loop = distTraveled / distPerLoop * strideMult;
-            this.actions.lowsprint.setEffectiveWeight((1 - f) * (1 - hurdle));
-            this.actions.lowsprint.time = phase !== null ? phase * this.actions.lowsprint.getClip().duration : pmod(
+            this.actions.lowsprint.setEffectiveWeight(1 - f);
+            this.actions.lowsprint.time = pmod(
                 this.actions.lowsprint.time + this.actions.lowsprint.getClip().duration * loop,
                 this.actions.lowsprint.getClip().duration
             );
-            this.actions.sprint.setEffectiveWeight(f * (1 - hurdle));
-            this.actions.sprint.time = phase !== null ? phase * this.actions.sprint.getClip().duration : pmod(
+            this.actions.sprint.setEffectiveWeight(f);
+            this.actions.sprint.time = pmod(
                 this.actions.lowsprint.time * this.actions.sprint.getClip().duration/this.actions.lowsprint.getClip().duration,
                 this.actions.sprint.getClip().duration
             );
-            this.actions.hurdle.setEffectiveWeight(hurdle);
-            this.actions.hurdle.time = phase !== null ? phase * this.actions.hurdle.getClip().duration : 0;
         }
         else if (this.dist < race.raceDistance) {
-            this.actions.sprint.setEffectiveWeight(1 - hurdle);
-            this.actions.sprint.time = phase !== null ? phase * this.actions.sprint.getClip().duration : pmod(
+            this.actions.sprint.setEffectiveWeight(1);
+            this.actions.sprint.time = pmod(
                 this.actions.sprint.time + (this.dist - this.pdist) * this.actions.sprint.getClip().duration/5.8 * strideMult,
                 this.actions.sprint.getClip().duration
             );
-            this.actions.hurdle.setEffectiveWeight(hurdle);
-            this.actions.hurdle.time = phase !== null ? phase * this.actions.hurdle.getClip().duration : 0;
         }
         else {
-            let pp = this.pposTheta.p;
-            let p = this.posTheta.p;
-            this.actions.sprint.setEffectiveWeight(1 - hurdle);
-            let ddist = Math.sqrt((pp.x - p.x)**2 + (pp.y - p.y)**2);
-            this.actions.sprint.time = phase !== null ? phase * this.actions.sprint.getClip().duration : pmod(
-                this.actions.sprint.time + ddist * this.actions.sprint.getClip().duration/5.8 * strideMult,
-                this.actions.sprint.getClip().duration
-            );
-            this.actions.hurdle.setEffectiveWeight(hurdle);
-            this.actions.hurdle.time = phase !== null ? phase * this.actions.hurdle.getClip().duration : 0;
-            this.mixer.update(0);
-            this.armature.position.set(p.x, p.y, p.z);
-            this.armature.rotation.set(0,0,Math.atan2(p.x - pp.x, pp.y - p.y, ));
-            return;
+            let ddist = this.dist - this.pdist;
+            let speed = ddist/delta;
+            this.posTheta.phi *= speed/this.actions.sprint.speed;
+
+            if (speed < this.actions.walkslow.speed*0.5) {
+                let f = mapRange(speed, 0,this.actions.walkslow.speed, 0,1);
+                this.actions.idle.setEffectiveWeight(1 - f);
+                this.actions.walkslow.setEffectiveWeight(f);
+                this.actions.idle.time = pmod(
+                    this.actions.idle.time + delta,
+                    this.actions.idle.getClip().duration
+                );
+                this.actions.walkslow.time = pmod(
+                    this.actions.walkslow.time + ddist * this.actions.walkslow.getClip().duration/1 * strideMult,
+                    this.actions.walkslow.getClip().duration
+                );
+            }
+            if (speed < this.actions.walkslow.speed) {
+                this.actions.walkslow.setEffectiveWeight(1);
+                this.actions.walkslow.time = pmod(
+                    this.actions.walkslow.time + ddist * this.actions.walkslow.getClip().duration/1 * strideMult,
+                    this.actions.walkslow.getClip().duration
+                );
+            }
+            else if (speed < this.actions.walk.speed) {
+                let f = mapRange(speed, this.actions.walkslow.speed,this.actions.walk.speed, 0,1);
+                let phaseStep = ddist / mapRange(speed, this.actions.walkslow.speed,this.actions.walk.speed, 1,2.3);
+                this.actions.sprint.time = pmod(
+                    this.actions.sprint.time + phaseStep * this.actions.sprint.getClip().duration * strideMult,
+                    this.actions.sprint.getClip().duration
+                );
+                this.actions.walkslow.time = pmod(
+                    this.actions.sprint.time * this.actions.walkslow.getClip().duration/this.actions.sprint.getClip().duration,
+                    this.actions.walkslow.getClip().duration
+                );
+                this.actions.walk.time = pmod(
+                    this.actions.sprint.time * this.actions.walk.getClip().duration/this.actions.sprint.getClip().duration,
+                    this.actions.walk.getClip().duration
+                );
+
+                this.actions.walkslow.setEffectiveWeight(1 - f);
+                this.actions.walk.setEffectiveWeight(f);
+            }
+            else if (speed < this.actions.sprint.speed) {
+                let f = mapRange(speed, this.actions.walk.speed,this.actions.sprint.speed, 0,1);
+                
+                let phaseStep = ddist / mapRange(speed, this.actions.walk.speed,this.actions.sprint.speed, 2.3,5.8);
+                this.actions.sprint.time = pmod(
+                    this.actions.sprint.time + phaseStep * this.actions.sprint.getClip().duration * strideMult,
+                    this.actions.sprint.getClip().duration
+                );
+                this.actions.walk.time = pmod(
+                    this.actions.sprint.time * this.actions.walk.getClip().duration/this.actions.sprint.getClip().duration,
+                    this.actions.walk.getClip().duration
+                );
+
+                this.actions.walk.setEffectiveWeight(1 - f);
+                this.actions.sprint.setEffectiveWeight(f);
+            }
+            else {
+                this.actions.sprint.setEffectiveWeight(1);
+                this.actions.sprint.time = pmod(
+                    this.actions.sprint.time + ddist * this.actions.sprint.getClip().duration/5.8 * strideMult,
+                    this.actions.sprint.getClip().duration
+                );
+            }
         }
         
         this.mixer.update(0);

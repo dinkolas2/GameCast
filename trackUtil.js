@@ -41,7 +41,7 @@ export function getTrackPos200(lane, dist) {
 
     let x,y,theta;
 
-    if (dist > 200 - straightLength){
+    if (dist > 200 - straightLength) {
         //back stretch
         x = centerX*2 - laneWidth * (lane - 0.5) + laneLineWidth/2;
         y = centerY*2 + 200 - dist;

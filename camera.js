@@ -1,15 +1,16 @@
-import { camera, sunLight, race, controls } from './init.js';
+import { camera, sunLight, race, controls, is200mTrack } from './init.js';
 
-import { pmod } from './util.js';
+import { pmod, mapRange } from './util.js';
 
 import * as THREE from 'three';
 
-export let cameraFunctionIndex = 5;
+export let cameraFunctionIndex = 0;
 let indexChanged = true;
 
 export function setCameraFunctionIndex(v) {
     indexChanged = true;
     cameraFunctionIndex = pmod(v, cameraFunctions.length);
+    console.log(cameraFunctionIndex);
 }
 
 const tempV3_1 = new THREE.Vector3();
@@ -20,9 +21,69 @@ tempOb.up.set(0,0,1);
 const padding = {left: 0, right: 0, top: 0, bottom: 0};
 const cameraViewDirection = new THREE.Vector3();
 
+//camera flies around, screen saver style
+function setCameraRevolve200mTrack(time) {
+    if (time % 25 < 10) {
+        camera.position.set(-24 + 75*Math.cos(time%25 * Math.PI/5), 17 + 40*Math.sin(time%25 * Math.PI/5), 10);
+        camera.lookAt(-24, 17, 0);
+    }
+    else if (time % 25 < 15) {
+        camera.position.set(mapRange(time%25, 10,15, -60,4), -10, 10);
+        camera.lookAt(mapRange(time%25, 10,15, -40,4), 0, 0);
+    }
+    else if (time % 25 < 20) {
+        camera.position.set(mapRange(time%25, 15,20, 20,-55), 17, 1);
+        camera.lookAt(mapRange(time%25, 15,20, 12,-70), 17, 0);
+    }
+    else {
+        camera.position.set(-24, 0, mapRange(time%25, 20,25, 40,100));
+        camera.lookAt(-24, 14, 0);
+    }
+}
+//camera flies around, screen saver style
+function setCameraRevolve400mTrack(time) {
+    if (time % 25 < 10) {
+        camera.position.set(-39 + 80*Math.cos(time%25 * Math.PI/5), -42 + 120*Math.sin(time%25 * Math.PI/5), 10);
+        camera.lookAt(-39, -42, 0);
+    }
+    else if (time % 25 < 15) {
+        camera.position.set(mapRange(time%25, 10,15, -86,-55), mapRange(time%25, 10,15, -86,-135), 20);
+        camera.lookAt(mapRange(time%25, 10,15, -85,-54), mapRange(time%25, 10,15, -85,-125), 0);
+    }
+    else if (time % 25 < 20) {
+        camera.position.set(-85, mapRange(time%25, 15,20, 35,-100), 2);
+        camera.lookAt(-85, mapRange(time%25, 15,20, 31,-115), 0);
+    }
+    else {
+        camera.position.set(-60, -42, mapRange(time%25, 20,25, 80,200));
+        camera.lookAt(-45, -42, 0);
+    }    
+}
+function setCameraRevolveTrack(time) {
+    if (indexChanged) {
+        camera.fov = 45;
+        camera.updateProjectionMatrix();
+    }
+    
+    if (is200mTrack) {
+        setCameraRevolve200mTrack(time);
+    }
+    else {
+        setCameraRevolve400mTrack(time);
+    }
+
+    indexChanged = false;
+}
+
 //MANUAL camera behavior:
 //update with THREE.js OrbitControls
 function setCameraManual() {
+    if (indexChanged) {
+        console.log(controls);
+        camera.fov = 20;
+        camera.updateProjectionMatrix();
+    }
+
     controls.update();
 
     let p = controls.target;
@@ -52,6 +113,8 @@ function setCameraTracking() {
     let newPos = new THREE.Vector3(p.x - 25 * Math.cos(pt.theta + 0.5), p.y - 25 * Math.sin(pt.theta + 0.5), 10);
     if (indexChanged) {
         camera.position.copy(newPos);
+        camera.fov = 20;
+        camera.updateProjectionMatrix();
     }
     else {
         camera.position.lerp(newPos, 0.005);
@@ -66,7 +129,7 @@ function setCameraTracking() {
 
 //FRAMING camera behavior:
 // Angle of camera is fixed (could later be adjusted).
-// Get position of first 4 athletes (could also be adjusted), imagine image plane 
+// Get position of first 3 athletes (could also be adjusted), imagine image plane 
 // centered at their average position and orthogonal to view angle. 
 // Project positions of athletes onto image plane, then postion the camera such
 // that all athletes are in frame with some padding room.
@@ -78,7 +141,12 @@ function setCameraFraming() {
     padding.right = 1;
     padding.bottom = 1;
     padding.top = 3; //2 + height of athletes roughly 2m
-    
+
+    if (indexChanged) {
+        camera.fov = 5;
+        camera.updateProjectionMatrix();
+    }
+     
     const pos = setCameraFrameNFromView(Math.min(3, race.athletesList.length), cameraViewDirection, padding);
 
     if (indexChanged) {
@@ -100,6 +168,11 @@ function setCameraFrameAll() {
     padding.right = 2;
     padding.bottom = 2;
     padding.top = 4; //2 + height of athletes roughly 2m
+
+    if (indexChanged) {
+        camera.fov = 5;
+        camera.updateProjectionMatrix();
+    }
     
     const pos = setCameraFrameNFromView(race.athletesList.length, cameraViewDirection, padding);
 
@@ -168,6 +241,30 @@ function setCameraTailing() {
 
     if (!indexChanged) {
         camera.position.lerp(c0, 0.9);
+        camera.fov = 20;
+        camera.updateProjectionMatrix();
+    }
+    indexChanged = false;
+}
+
+//LEADING camera behavior:
+// fly above/in front first place athlete
+function setCameraLeading() {
+    let c0 = new THREE.Vector3().copy(camera.position);
+
+    let p = race.athletesList[0].posTheta.p;
+    let theta = race.athletesList[0].posTheta.theta;
+
+    camera.position.set(p.x - 10*Math.cos(theta + Math.PI/2), p.y - 10*Math.sin(theta + Math.PI/2), 5);
+    camera.lookAt(p.x + 8*Math.cos(theta + Math.PI/2), p.y + 8*Math.sin(theta + Math.PI/2), 0);
+
+    sunLight.position.set(p.x + 2, p.y - 2, 5);
+    sunLight.target.position.set(p.x, p.y, 0);
+
+    if (!indexChanged) {
+        camera.position.lerp(c0, 0.9);
+        camera.fov = 20;
+        camera.updateProjectionMatrix();
     }
     indexChanged = false;
 }
@@ -255,4 +352,4 @@ function setCameraFrameNFromView(n, cameraViewDirection, padding) {
     return tempV3_1;
 }
 
-export const cameraFunctions = [setCameraManual, setCameraTracking, setCameraFraming, setCameraBird, setCameraTailing, setCameraFrameAll];
+export const cameraFunctions = [setCameraManual, setCameraTracking, setCameraFraming, setCameraBird, setCameraTailing, setCameraFrameAll, setCameraLeading, setCameraRevolveTrack];
