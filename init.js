@@ -1,5 +1,7 @@
 //TODO: make temp Vector3's to not instantiate as many. Replace new THREE.Vector3 with them where reasonable
 
+const DEV = true;
+
 import * as THREE from 'three';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
@@ -278,8 +280,15 @@ async function initAthleteModel() {
 
 let globalTOffset;
 function initSocket() {
-    //receive race data from server
-    const socket = io('http://localhost:8082'); //io('http://192.168.42.14:8082'); //io('http://192.168.1.148:8082');
+    // receive race data from server. If in DEV mode, just use localhost, otherwise
+    // use the proxy. (The proxy takes in the raw data from the meet, formats it a bit,
+    // and then passes it along to the GameCast. TODO: should revisit whether the proxy
+    // should exist. Should the raw data from the meet already be formatted for the 
+    // GameCast? Or maybe should the formatting happen at the client? Or maybe the proxy
+    // is fine?)
+    const serverURL = DEV ? 'http://localhost:8082' : 'https://trackcast-proxy.ngrok.io';
+    const socket = io(serverURL);
+    //ngrok http --url= 80
     socket.on('tracking', (msg) => {
         if (race === undefined) {
             initRace(msg);
@@ -297,13 +306,15 @@ function initSocket() {
             updateRace(msg);
         }
     });
-    socket.on('results', (msg) => {
-        if (race === undefined) {
-            initRace(msg);
-        }
 
-        race.resultsOfficial = true;
-    });
+    //TODO: make a way to receive official results
+    // socket.on('results', (msg) => {
+    //     if (race === undefined) {
+    //         initRace(msg);
+    //     }
+
+    //     race.resultsOfficial = true;
+    // });
 }
 
 function initTitle() {
@@ -453,7 +464,8 @@ function initRace(msg) {
         race.f = buildShortTrackGetPosThetaPhi(race.raceDistance, race.stagger);
     }
 
-    if (race.eventName.includes('Hurdles')) {
+    //TODO: 200m track hurdles
+    if ((!is200mTrack) && race.eventName.includes('Hurdles')) {
         let hurdleHeight, hurdle0, hurdleSpacing, hurdleCount;
         //TODO: slow down hurdle step
 
@@ -690,7 +702,8 @@ function initRace(msg) {
             rankLabels();
         }
     }
-    else if (race.eventName.includes('800') || race.eventName.includes('1500') || race.eventName.includes('3000')) {
+    //TODO: move the 60m race to the laned race section
+    else if (race.eventName.includes('60') || race.eventName.includes('800') || race.eventName.includes('1500') || race.eventName.includes('Mile') || race.eventName.includes('500') || race.eventName.includes('3000')) {
         //Un-laned races
 
         //requires that time is in range [race.minTime, race.maxTime]
@@ -705,7 +718,6 @@ function initRace(msg) {
                 let amsg = msg.athletes[id];
 
                 athlete.dist = amsg.pathDistance
-                
 
                 if (athlete.dist < race.raceDistance) {
                     athlete.speed = amsg.speed;

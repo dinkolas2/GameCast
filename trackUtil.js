@@ -273,6 +273,9 @@ export function getTrackPos1500(lane, dist) {
     };
 }
 
+//TODO: make this function smarter/more general.
+//Perhaps replace it with something that uses the lane width
+// and the live fromRail and dist values.
 export function trackDataTo400mGameTrack(x,y) {
     return new THREE.Vector3(
         (y - 2*39.3447 + 1) * 1.08,

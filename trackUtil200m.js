@@ -209,6 +209,10 @@ export function buildShortTrackGetPosThetaPhi(total, stagger) {
     }
 }
 
+//TODO: adjust transformation to fit data.
+//TODO: make this function smarter/more general.
+//Perhaps replace it with something that uses the lane width
+// and the live fromRail and dist values.
 export function trackDataTo200mGameTrack(x,y) {
     //TODO: Raycast to model for z value?
     return new THREE.Vector3(
