@@ -12,13 +12,13 @@ export function animate() {
     const time = clock.getElapsedTime();
 
     if (race) {
-        if (race.athletesList[0].dist > (is200mTrack ? 100 : 200) && blockIMs[0].visible) {
+        if (race.athletesList[0].dist > (is200mTrack ? 100 : 200) && blockIMs && blockIMs[0].visible) {
             for (let blockIM of blockIMs) {
                 blockIM.visible = false;
             }
         }
         if (race.loadingState === LOADINGSTATES.INIT) {
-            race.setTime(race.time);
+            race.setTime(race.time, delta);
             if (race.maxTime >= race.time + PRELOAD) {
                 race.loadingState = LOADINGSTATES.PLAYING;
             }

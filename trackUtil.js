@@ -262,7 +262,6 @@ export function getTrackPos1500(lane, dist) {
         theta = Math.PI;
     }
 
-
     return {
         p:  new THREE.Vector3(
             x,

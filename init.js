@@ -9,6 +9,8 @@ import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { ShadowMapViewer } from 'three/addons/utils/ShadowMapViewer.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
@@ -60,6 +62,18 @@ export let shadowViewer;
 //export let matTrack;
 export let matSkin;
 export let blockIMs;
+export let matSpeedLine = new LineMaterial( {
+
+    color: 0xffffff,
+    linewidth: 0.5, // in world units with size attenuation, pixels otherwise
+    vertexColors: true,
+    worldUnits: true,
+
+    dashed: false,
+    alphaToCoverage: false,
+
+} );
+matSpeedLine.depthWrite = false;
 
 //loaders
 const gltfLoader = new GLTFLoader();
@@ -208,7 +222,7 @@ function initTrack() {
             let mat = new THREE.MeshPhongMaterial({ color: 0xD7D7D7 });
             mat.depthTest = false;
             child.material = mat;
-            child.renderOrder = -1;
+            child.renderOrder = -2;
             child.receiveShadow = true;
             child.castShadow = false;
             scene.add(child);
@@ -218,7 +232,7 @@ function initTrack() {
             let mat = new THREE.MeshPhongMaterial({ color: 0x7A2F2D });
             mat.depthWrite = true;
             child.material = mat;
-            child.renderOrder = -2;
+            child.renderOrder = -3;
             child.receiveShadow = true;
             child.castShadow = false;
             scene.add(child);
@@ -226,23 +240,23 @@ function initTrack() {
     }
     else {
         //import 200m track model
-        gltfLoader.load('./models/200mTrack/200mTrack.glb', (gltf) => {
+        gltfLoader.load('./models/200mTrack/200mTrack2.glb', (gltf) => {
             let red = gltf.scene.getObjectByName('red');
             let blue = gltf.scene.getObjectByName('blue');
             let lines = gltf.scene.getObjectByName('lines');
-            // let pad = gltf.scene.getObjectByName('pad');
+            // let pad = gltf.scene.getObjectByName('pad'); //TODO: use pad in 60m?
             let rail = gltf.scene.getObjectByName('rail');
             
             let matRed = new THREE.MeshPhongMaterial({ color: 0x7A2F2D });
             red.material = matRed;
-            red.renderOrder = -2;
+            red.renderOrder = -4;
             red.receiveShadow = true;
             red.castShadow = false;
             scene.add(red);
 
             let matBlue = new THREE.MeshPhongMaterial({ color: 0x3652E7 });
             blue.material = matBlue;
-            blue.renderOrder = -2;
+            blue.renderOrder = -4;
             blue.receiveShadow = true;
             blue.castShadow = false;
             scene.add(blue);
@@ -250,7 +264,7 @@ function initTrack() {
             let matLines = new THREE.MeshPhongMaterial({ color: 0xD7D7D7 });
             matLines.depthTest = false;
             lines.material = matLines;
-            lines.renderOrder = -1;
+            lines.renderOrder = -3;
             lines.receiveShadow = true;
             lines.castShadow = false;
             scene.add(lines);
@@ -263,6 +277,7 @@ function initTrack() {
 
             let matRail = new THREE.MeshPhongMaterial({ color: 0xBBBBBB });
             rail.material = matRail;
+            rail.renderOrder = -2;
             rail.receiveShadow = true;
             rail.castShadow = true;
             scene.add(rail);
@@ -339,17 +354,20 @@ function initLeaderboard() {
     for (let a of race.athletesList) {
         const labelDiv = document.createElement('div');
         labelDiv.className = 'athleteLabel';
+        const labelOffset = document.createElement('div');
+        labelOffset.className = 'athleteLabelOffset';
+        labelDiv.appendChild(labelOffset);
         let name = document.createElement('div');
         name.className = 'labelName';
         name.textContent = `${a.firstName} ${a.lastName}`;
-        labelDiv.appendChild(name);
+        labelOffset.appendChild(name);
         const triangleDiv = document.createElement('div');
         triangleDiv.className = 'triangle';
-        labelDiv.appendChild(triangleDiv);
+        labelOffset.appendChild(triangleDiv);
 
         a.labelObjectVisible = 0;
         a.labelObject = new CSS2DObject(labelDiv);
-        a.labelObject.position.set(0,0,2.5);
+        a.labelObject.position.set(0,0,2);
         a.armature.add(a.labelObject);
         a.labelObject.visible = false;
 
@@ -371,10 +389,10 @@ function initLeaderboard() {
                 a.unHighlight();
             }
             a.highlight();
-            a.labelObjectVisible = 99999999;
+            a.labelObjectVisible = 9999;
         }
         a.rankEl.onmouseleave = () => {
-            a.unHighlight();
+            a.labelObjectVisible = 3;
         }
     }
 }
@@ -401,8 +419,10 @@ function initRace(msg) {
         resultsOfficial: false,
     };
 
-    //TODO: make an api to request a description of the track from the server
+    //TODO: make an API to request a description of the track from the server
     race.trackDataToGameTrack = is200mTrack ? trackDataTo200mGameTrack : trackDataTo400mGameTrack;
+    race.hurdles = msg.eventName.includes('Hurdles');
+    race.laned = is200mTrack ? (msg.raceDistance <= 400) : (msg.raceDistance <= 400); //TODO: figure out which races for 200m track are unlaned
     
     //TODO: add stagger to description from server
     if (is200mTrack) {
@@ -421,6 +441,34 @@ function initRace(msg) {
         }
     }
 
+    if (is200mTrack) {
+        race.f = buildShortTrackGetPosThetaPhi(race.raceDistance, race.stagger);
+    }
+    else {
+        if (race.eventName.includes('100')) {
+            race.f = getTrackPos100;
+        }
+        else if (race.eventName.includes('110')) {
+            race.f = getTrackPos110;
+        }
+        else if (race.eventName.includes('200')) {
+            race.f = getTrackPos200;
+        }
+        else if (race.eventName.includes('400')) {
+            race.f = getTrackPos400;
+        }
+        else if (race.eventName.includes('800')) {
+            race.f = getTrackPos800;
+        }
+        else if (race.eventName.includes('1500')) {
+            race.f = getTrackPos1500;
+        }
+    }
+
+    if (race.raceDistance <= 400) {
+        initBlocks();
+    }
+
     //Create Athlete models
     for (let id in msg.athletes) {
         let athleteResult = msg.athletes[id];
@@ -432,45 +480,20 @@ function initRace(msg) {
     }
 
     initLeaderboard();
-    
-    if (race.eventName.includes('100')) {
-        race.f = getTrackPos100;
-        
-        initBlocks();
-    }
-    else if (race.eventName.includes('110')) {
-        race.f = getTrackPos110;
 
-        initBlocks();
-    }
-    else if (race.eventName.includes('200')) {
-        race.f = getTrackPos200;
-
-        initBlocks();
-    }
-    else if (race.eventName.includes('400')) {
-        race.f = getTrackPos400;
-
-        initBlocks();
-    }
-    else if (race.eventName.includes('800')) {
-        race.f = getTrackPos800;
-    }
-    else if (race.eventName.includes('1500')) {
-        race.f = getTrackPos1500;
-    }
-
-    if (is200mTrack) {
-        race.f = buildShortTrackGetPosThetaPhi(race.raceDistance, race.stagger);
-    }
-
-    //TODO: 200m track hurdles
-    if ((!is200mTrack) && race.eventName.includes('Hurdles')) {
+    //TODO: Test 200m track hurdles
+    if ((!is200mTrack) && race.hurdles) {
         let hurdleHeight, hurdle0, hurdleSpacing, hurdleCount;
         //TODO: slow down hurdle step
 
         if (race.eventName.includes('Men')) {
-            if (race.eventName.includes('110')) {
+            if (race.eventName.includes('60') || race.eventName.includes('55')) {
+                hurdleHeight = 1.067;
+                hurdle0 = 13.72;
+                hurdleSpacing = 9.14;
+                hurdleCount = 5;
+            }
+            else if (race.eventName.includes('110')) {
                 hurdleHeight = 1.067;
                 hurdle0 = 13.72;
                 hurdleSpacing = 9.14;
@@ -484,7 +507,13 @@ function initRace(msg) {
             }
         }
         else if (race.eventName.includes('Women')) {
-            if (race.eventName.includes('100')) {
+            if (race.eventName.includes('60') || race.eventName.includes('55')) {
+                hurdleHeight = 0.840;
+                hurdle0 = 13.00;
+                hurdleSpacing = 8.50;
+                hurdleCount = 5;
+            }
+            else if (race.eventName.includes('100')) {
                 hurdleHeight = 0.840;
                 hurdle0 = 13.00;
                 hurdleSpacing = 8.50;
@@ -500,6 +529,8 @@ function initRace(msg) {
 
         let lastHurdle = hurdle0 + hurdleSpacing * (hurdleCount - 1);
 
+        //hurdles setTime
+        //requires that time is in range [race.minTime, race.maxTime]
         race.setTime = (time, delta=0) => {
             time = time + delta;
             let msg = interpolateMsgs(time);
@@ -515,6 +546,7 @@ function initRace(msg) {
                 let amsg = msg.athletes[id];
 
                 athlete.dist = amsg.pathDistance;
+                athlete.speed = amsg.speed;
 
                 let phase, hurdle;
 
@@ -546,21 +578,44 @@ function initRace(msg) {
                     hurdle = Math.sqrt(Math.max(0, 1/2 * (2 - Math.abs(amsg.pathDistance - (hurdle0 + (hurdleCount-1) * hurdleSpacing)))));
                 }
                 else {
-                    //TODO: after race finish, line up in order of finish.
-                    //Once results are official go to podiums.
-                    // if (!race.resultsOfficial) {
-
-                    // }
-                    // else {
+                    // After race finish, line up in order of finish.
+                    // Once results are official go to podiums.
+                    if (!race.resultsOfficial) {
+                        //line up in unofficial finish order
+                        const finishTime = athlete.finishTime;
+                        const finishSpeed = athlete.speed;
                         
-                    // }
-                    //after finish use x,y data
-                    let p = race.trackDataToGameTrack(amsg.x, amsg.y);
-                    posTheta.p = p;
-                    
-                    athlete.posTheta = posTheta;
-                    athlete.pose(delta);
-                    continue;
+                        const t = time - finishTime;
+                        //TODO: this is a sudden stop to account for the 60m hurdles' short finish. 
+                        // Should instead treat the 60m hurdles uniquely.
+                        const rankStagger = athlete.rank === 1 ? 25 : (athlete.rank === 2 ? 19 : (athlete.rank === 3 ? 14 : (5 + 5*athlete.random)));
+
+                        //quadratic curve with:
+                        // m=finishSpeed @ t=0
+                        // dist=rankStagger @ m=0
+                        const d1 = rankStagger;
+                        const b = finishSpeed;
+                        const t1 = 2 * d1 / b;
+                        const a = -b / (2 * t1);
+                        const d = Math.max(0, a*t*t + b*t);
+
+                        if (t < t1) {
+                            athlete.dist = race.raceDistance + d;
+                            let posTheta = race.f(athlete.lane, athlete.dist);
+                            athlete.posTheta = posTheta;
+                            athlete.pose(delta);
+                        }
+                        else {
+                            athlete.dist = race.raceDistance + rankStagger;
+                            let posTheta = race.f(athlete.lane, athlete.dist);
+                            athlete.posTheta = posTheta;
+                            athlete.pose(delta);
+                        }
+                    }
+                    else {
+                        //TODO: official results, go to podiums
+                        
+                    }
                 }
                 phase = pmod(phase, 1);
                 posTheta.p.z += hurdle * (hurdleHeight - 0.840); //hurdle animation was animated at height 0.840, correct height of leap
@@ -616,8 +671,8 @@ function initRace(msg) {
                     for (let lane = 1; lane <= 9; lane++) {
                         let index = i*9 + lane-1;
                         let posTheta = race.f(lane, dist);
-                        m.makeRotationZ(posTheta.theta);
-                        m.setPosition(posTheta.p.x, posTheta.p.y, 0);
+                        m.makeRotationFromEuler(new THREE.Euler(posTheta.phi ? posTheta.phi : 0, 0, posTheta.theta));
+                        m.setPosition(posTheta.p.x, posTheta.p.y, posTheta.p.z);
                         im.setMatrixAt(index, m);
                         im.getMatrixAt(index, m);
                     }
@@ -626,9 +681,10 @@ function initRace(msg) {
             }
         });
     }
-    else if (race.eventName.includes('100') || race.eventName.includes('200') || race.eventName.includes('400')) {
+    else if (race.laned) {
         //Laned Races
 
+        //laned races setTime
         //requires that time is in range [race.minTime, race.maxTime]
         race.setTime = (time, delta=0) => {
             time = time + delta;
@@ -682,7 +738,7 @@ function initRace(msg) {
                         }
                     }
                     else {
-                        //official results, go to podiums
+                        //TODO: official results, go to podiums
                         
                     }
                 }
@@ -698,14 +754,14 @@ function initRace(msg) {
             for (let i = 0; i < race.athletesList.length; i++) {
                 race.athletesList[i].rank = i + 1;
             }
-
+            
             rankLabels();
         }
     }
-    //TODO: move the 60m race to the laned race section
-    else if (race.eventName.includes('60') || race.eventName.includes('800') || race.eventName.includes('1500') || race.eventName.includes('Mile') || race.eventName.includes('500') || race.eventName.includes('3000')) {
+    else if (!race.laned) {
         //Un-laned races
 
+        //unlaned setTime
         //requires that time is in range [race.minTime, race.maxTime]
         race.setTime = (time, delta=0) => {
             time = time + delta;
@@ -796,7 +852,7 @@ function initBlocks() {
             for (let i = 0; i < race.athletesList.length; i++) {
                 let a = race.athletesList[i];
                 let posTheta = race.f(a.lane, -0.358);
-                m.makeRotationFromEuler(new THREE.Euler(posTheta.phi, 0, posTheta.theta));
+                m.makeRotationFromEuler(new THREE.Euler(posTheta.phi ? posTheta.phi : 0, 0, posTheta.theta));
                 m.setPosition(posTheta.p.x, posTheta.p.y, posTheta.p.z);
                 im.setMatrixAt(i, m);
                 im.getMatrixAt(i, m);
@@ -814,24 +870,20 @@ function initBlocks() {
 
 //find relevant race.msgs, interpolate them to create msg at race.time
 //requires that time is in range [race.minTime, race.maxTime]
-let FUCKUS = 0;
 function interpolateMsgs(time) {
     let msg, msg0, msg1;
     let i = 0;
     //TODO: binary search by msg.time, or even better search out from previous index
     for (i = 0; i < race.msgs.length - 1; i++) {
         msg0 = race.msgs[i];
-        if (time === msg0.raceTime) {
-            msg = msg0;
-            break;
-        }
-        else if (msg0.raceTime < time) {
+        if (msg0.raceTime <= time) {
             msg1 = race.msgs[i+1];
             if (time < msg1.raceTime) {
                 let f = mapRange(time, msg0.raceTime,msg1.raceTime, 0,1);
                 msg = {
                     fake: true,
                     athletes: {},
+                    raceTime: time,
                 }
                 for (let id in msg0.athletes) {
                     let a0 = msg0.athletes[id];
@@ -858,21 +910,51 @@ function interpolateMsgs(time) {
 }
 
 function updateRace(msg) {
+    let badMSG = 0;
+    for (let k in msg.athletes) {
+        let a = msg.athletes[k];
+        if ((a.x === a.y) || (a.x === -300)) {
+            badMSG++;
+        }
+    }
+    if (badMSG > race.athletesList.length / 2) return;
+    
+    let pmsg = race.msgs[race.msgs.length - 1];
     race.msgs.push(msg); 
     race.msgs.sort((a,b) => a.raceTime - b.raceTime);//TODO: insert into list instead of sorting
     race.minTime = Math.min(race.minTime, msg.raceTime);
     race.maxTime = Math.max(race.maxTime, msg.raceTime);
-
-    let allFinished = true;    
+    let allFinished = true;
     for (let k in msg.athletes) {
+        let athlete = race.athletes[k];
         let a = msg.athletes[k];
+        let pa = pmsg.athletes[k];
         if (a.pathDistance < race.raceDistance) {
             allFinished = false;
-            return;
+        }
+        //TODO: this currently doesn't work when you load the page in the middle of the race.
+        // Could be solved in a complex way, or by loading the whole race from the server.
+        for (let d = athlete.speeds.length; (d <= race.raceDistance) && (d <= a.pathDistance); d++) {
+            let f = mapRange(d, pa.pathDistance,a.pathDistance, 0,1);
+            f = Math.max(0,f);
+            let speed = mapRange(f, 0,1, pa.speed,a.speed);
+            athlete.speeds.push(speed);
+            athlete.maxSpeed = Math.max(athlete.maxSpeed, speed);
+            let pt;
+            if (race.laned) {
+                pt = race.f(a.lane, d).p;
+            }
+            else {
+                pt = race.trackDataToGameTrack(
+                    mapRange(f, 0,1, pa.x, a.x), 
+                    mapRange(f, 0,1, pa.y, a.y)
+                );
+            }
+            athlete.speedPoints.push(pt);
         }
     }
     if (allFinished) {
-        race.maxTime = Infinity;
+        race.maxTime = Infinity; //Full data that we're interested in is here, we can play the whole post-race animations
     }
 }
 

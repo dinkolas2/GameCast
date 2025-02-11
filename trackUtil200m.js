@@ -14,6 +14,7 @@ const radius = 16.58565;
 //goes into the curve.
 const straightLength = 47.8946;
 
+//stagger is number of turns which are laned. 
 export function buildShortTrackGetPosThetaPhi(total, stagger) {
     if (total === 55 || total === 60) {
         return (lane, dist) => {return {
@@ -25,9 +26,9 @@ export function buildShortTrackGetPosThetaPhi(total, stagger) {
             theta: -Math.PI/2,
             phi: 0,
         }}
-        
     }
     else if (!stagger || stagger < 0 || stagger * 100 >= total - 50) {
+        //fully laned race
         return (lane, dist) => {
             let remaining = total - dist;
             let radiusLn = radius + (laneWidth+laneLineWidth) * (lane - 1);
@@ -79,6 +80,7 @@ export function buildShortTrackGetPosThetaPhi(total, stagger) {
         }
     }
     else {
+        //unlaned race
         return (lane, dist) => {
             let x, y, z, phi, theta;
             
@@ -87,7 +89,7 @@ export function buildShortTrackGetPosThetaPhi(total, stagger) {
             let remaining = total - dist;
             let loopLength = 2*straightLength + 2*curveLength; //for staggered laned section
             let diagonal = Math.sqrt(((lane-1) * (laneWidth+laneLineWidth))**2 + straightLength**2);
-            let unlanedMeters = (floor(total/100) - stagger) * 100;
+            let unlanedMeters = (Math.floor(total/100) - stagger) * 100;
             let lanedMeters = total - (unlanedMeters + diagonal);
             let laned = mapRange(remaining, unlanedMeters+diagonal, unlanedMeters, 1,0) ;
             laned = Math.max(0,Math.min(laned,1));
@@ -158,7 +160,7 @@ export function buildShortTrackGetPosThetaPhi(total, stagger) {
             }
             else {
                 //laned section at beginning
-                let loopPos = remaining - (unlanedMeters + diagonal) + straightLength + loopLength*0.5*stagger; //kinda hacky *stagger
+                let loopPos = remaining - (unlanedMeters + diagonal) + straightLength + loopLength*0.5*stagger; //kinda hacky stagger
                 loopPos = pmod(loopPos, loopLength)
                 if (loopPos < straightLength) {
                     x = laneLineWidth - loopPos
@@ -208,6 +210,8 @@ export function buildShortTrackGetPosThetaPhi(total, stagger) {
         }
     }
 }
+
+
 
 //TODO: adjust transformation to fit data.
 //TODO: make this function smarter/more general.

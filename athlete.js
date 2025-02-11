@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { race, athleteParent, matSkin } from './init.js';
+import { race, athleteParent, matSkin, matSpeedLine, is200mTrack } from './init.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+import { Line2 } from 'three/addons/lines/Line2.js';
 
 import { mapRange, pmod } from './util.js';
 
@@ -11,6 +13,16 @@ export class Athlete {
         this.random = Math.random(); // per athlete randomness
         this.pickID = Number('0x'+id); // for mouse hover GPU picking
         this.id = id;
+
+        this.speeds = [athleteInfo.speed];
+        this.maxSpeed = athleteInfo.speed;
+        let pt = race.laned ? 
+            race.f(this.lane, athleteInfo.pathDistance).p :
+            race.trackDataToGameTrack(
+                athleteInfo.x, 
+                athleteInfo.y
+            );
+        this.speedPoints = [pt];
 
         this.scene = athleteScene;
         this.mixer = new THREE.AnimationMixer(this.scene);
@@ -140,9 +152,10 @@ export class Athlete {
     }
 
     highlight() {
-        this.labelObjectVisible = 1;
+        this.labelObjectVisible = 3;
         this.labelObject.visible = true;
         this.rankEl.classList.add('highlight');
+        this.generateSpeedLine();
 
         for (let a of race.athletesList) {
             if (this !== a) {
@@ -168,18 +181,25 @@ export class Athlete {
             a.meshCol2.material.opacity = 1;
             a.meshSkin.material.opacity = 1;
         }
+
+        this.scene.remove(this.line);
     }
 
-    updateLabel() {
+    updateLabel(delta) {
         //TODO: better visibility control of labels
-        this.labelObjectVisible *= 0.999;
-        if (0 < this.labelObjectVisible && this.labelObjectVisible < 0.5) {
-            this.unHighlight();
+        if (this.labelObjectVisible > 0) {
+            this.labelObjectVisible -= delta;
+            if (this.labelObjectVisible < 0) {
+                this.unHighlight();
+            }
+            else {
+                this.generateSpeedLine();
+            }
         }
     }
 
     poseHurdle(delta, phase, hurdle=0) {
-        this.updateLabel();
+        this.updateLabel(delta);
         
         for (let k in this.actions) {
             this.actions[k].setEffectiveWeight(0);
@@ -228,7 +248,11 @@ export class Athlete {
     
 
     pose(delta) {
-        this.updateLabel();
+        this.updateLabel(delta);
+        
+        if (!race.laned && this.dist === 0) {
+            this.speedPoints[0] = this.posTheta.p; //make sure start of speed lines is right before starting the race
+        }
 
         let strideMult = mapRange(this.random, 0,1, 0.8,1.2);
 
@@ -339,5 +363,37 @@ export class Athlete {
         let phi = this.posTheta.phi ? this.posTheta.phi : 0;
         this.armature.position.set(p.x, p.y, p.z);
         this.armature.rotation.set(0,phi,theta,'ZYX');
+    }
+
+    generateSpeedLine() {
+        let points = [];
+        let maxSpeed = this.maxSpeed;
+        let colors = [];
+        let color = new THREE.Color();
+        for (let d = 0; (d < this.speeds.length) && (d <= this.dist); d++) {
+            let speed = this.speeds[d];
+            let point = this.speedPoints[d];
+            points.push(point.x, point.y, point.z + 0.25 + d*0.5/(is200mTrack ? 200 : 400));
+            color.setHSL( mapRange((speed/maxSpeed)**2, 0,1, 0.66, 0), 1, 0.5, THREE.SRGBColorSpace );
+            colors.push(color.r, color.g, color.b);
+        }
+        if (this.dist < race.raceDistance) {
+            let point = this.posTheta.p;
+            points.push(point.x, point.y, point.z + 0.25 + this.dist*0.5/(is200mTrack ? 200 : 400));
+            let speed = this.speed;
+            color.setHSL( mapRange((speed/maxSpeed)**2, 0,1, 0.66, 0), 1, 0.5, THREE.SRGBColorSpace );
+            colors.push(color.r, color.g, color.b);
+        }
+        
+        let lineGeometry = new LineGeometry();
+        lineGeometry.setPositions(points);
+        lineGeometry.setColors(colors);
+        if (this.line) {
+            this.scene.remove(this.line);
+        }
+        const line = new Line2(lineGeometry, matSpeedLine);
+        line.renderOrder = -1;
+        this.scene.add(line);
+        this.line = line;
     }
 }

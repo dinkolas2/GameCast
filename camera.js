@@ -10,7 +10,6 @@ let indexChanged = true;
 export function setCameraFunctionIndex(v) {
     indexChanged = true;
     cameraFunctionIndex = pmod(v, cameraFunctions.length);
-    console.log(cameraFunctionIndex);
 }
 
 const tempV3_1 = new THREE.Vector3();
@@ -79,7 +78,6 @@ function setCameraRevolveTrack(time) {
 //update with THREE.js OrbitControls
 function setCameraManual() {
     if (indexChanged) {
-        console.log(controls);
         camera.fov = 20;
         camera.updateProjectionMatrix();
     }

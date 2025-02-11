@@ -82,3 +82,6 @@ h2 {
     display: inline-block;
     text-align: left;
 }
+.athleteLabelOffset {
+    transform: translate(0px, -20px);
+}
