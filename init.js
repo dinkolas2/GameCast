@@ -34,15 +34,17 @@ export const LOADINGSTATES = {
     AWAITING: 1,
     PLAYING: 2,
 }
-export const PRELOAD = 3; //seconds of data to wait for before starting animation
+export const PRELOAD = 0.05; //seconds of data to wait for before starting animation
 
 //TODO: add this and number of staggered turns to server
 //  make an api to request a description of the track from the server
-export const is200mTrack = true;
+export const is200mTrack = false;
+export let allSpeedLines = true;
 
 //rendering
 export let camera, renderer, rendererCSS;
 export let clock;
+export let autoCam = true;
 
 //scene
 export let scene;
@@ -240,12 +242,14 @@ function initTrack() {
     }
     else {
         //import 200m track model
-        gltfLoader.load('./models/200mTrack/200mTrack2.glb', (gltf) => {
+        gltfLoader.load('./models/200mTrack/200mTrack3.glb', (gltf) => {
             let red = gltf.scene.getObjectByName('red');
             let blue = gltf.scene.getObjectByName('blue');
             let lines = gltf.scene.getObjectByName('lines');
             // let pad = gltf.scene.getObjectByName('pad'); //TODO: use pad in 60m?
             let rail = gltf.scene.getObjectByName('rail');
+            let logoBlack = gltf.scene.getObjectByName('logo_black');
+            let logoRed = gltf.scene.getObjectByName('logo_red');
             
             let matRed = new THREE.MeshPhongMaterial({ color: 0x7A2F2D });
             red.material = matRed;
@@ -268,6 +272,22 @@ function initTrack() {
             lines.receiveShadow = true;
             lines.castShadow = false;
             scene.add(lines);
+
+            let matLogoRed = new THREE.MeshPhongMaterial({ color: 0xBE2328, side:THREE.DoubleSide });
+            matLogoRed.depthTest = false;
+            logoRed.material = matLogoRed;
+            logoRed.renderOrder = -4;
+            logoRed.receiveShadow = true;
+            logoRed.castShadow = false;
+            scene.add(logoRed);
+
+            let matLogoBlack = new THREE.MeshPhongMaterial({ color: 0x000000, side:THREE.DoubleSide });
+            matLogoBlack.depthTest = false;
+            logoBlack.material = matLogoBlack;
+            logoBlack.renderOrder = -4;
+            logoBlack.receiveShadow = true;
+            logoBlack.castShadow = false;
+            scene.add(logoBlack);
             
             // let matPad = new THREE.MeshPhongMaterial({ color: 0xD7D7D7 });
             // pad.material = matPad;
@@ -301,6 +321,8 @@ function initSocket() {
     // should exist. Should the raw data from the meet already be formatted for the 
     // GameCast? Or maybe should the formatting happen at the client? Or maybe the proxy
     // is fine?)
+    // For LIVE mode, this should point to proxy server
+    // Use command >ipconfig to find my IPv4 address on the local WIFI
     const serverURL = DEV ? 'http://localhost:8082' : 'https://trackcast-proxy.ngrok.io';
     const socket = io(serverURL);
     //ngrok http --url= 80
@@ -309,14 +331,20 @@ function initSocket() {
             initRace(msg);
         }
         else {
+            if (msg.eventName !== race.eventName) {
+                //new event, reload page
+                //TODO: get rid of true argument
+                // (it clears the cache which is convenient for dev changes)
+                window.location.reload(true);
+            }
             //TODO: this is kinda weird maybe should fix on server side?
             //these two if statements allow raceTime to keep counting up after the first place runner
             //has finished, because currently raceTime stops counting after first place finishes
             if (msg.raceTime !== msg.pRaceTime) {
-                globalTOffset = msg.raceTime - msg.globalTime;
+                globalTOffset = msg.raceTime - Date.now()
             }
             if (msg.raceTime === msg.pRaceTime && msg.raceTime > 0 && globalTOffset !== undefined) {
-                msg.raceTime = msg.globalTime + globalTOffset;
+                msg.raceTime = Date.now() + globalTOffset;
             }
             updateRace(msg);
         }
@@ -337,12 +365,54 @@ function initTitle() {
     leaderboardContainer.className = 'leaderboard';
     document.body.appendChild(leaderboardContainer);
 
-    const loadingText = document.createElement('h2');
+    const loadingText = document.createElement('div');
     loadingText.innerText = 'Awaiting Race Data';
     leaderboardContainer.appendChild(loadingText);
 }
 
 function initLeaderboard() {
+    const cameraButtonDiv = document.createElement('div');
+    cameraButtonDiv.className = 'cameraButtonDiv';
+    document.body.appendChild(cameraButtonDiv);
+    const autoCamCheckbox = document.createElement('input');
+    autoCamCheckbox.type = 'checkbox';
+    autoCamCheckbox.checked = true;
+    autoCamCheckbox.id = 'autoCamCheckbox';
+    const autoCamLabel = document.createElement("label");
+    autoCamLabel.htmlFor = "autoCamCheckbox";
+    autoCamLabel.textContent = "Auto Cam";
+    cameraButtonDiv.appendChild(autoCamCheckbox);
+    cameraButtonDiv.appendChild(autoCamLabel);
+    autoCamCheckbox.onchange = (e) => {
+        autoCam = e.target.checked;
+    }
+    
+    const cameraFnNamesIndices = [
+        ['Manual', 0], 
+        ['Frame 3', 2], 
+        ['Frame All', 5], 
+        ['Tracking', 1], 
+        ['Bird', 3],
+        ['Tailing', 4],
+        ['Leading', 6]
+    ];
+    for (let nameIndex of cameraFnNamesIndices) {
+        const [name, idx] = nameIndex;
+        const button = document.createElement('button');
+        button.className = 'cameraButton';
+        button.textContent = name;
+        button.onclick = () => {
+            setCameraFunctionIndex(idx);
+            autoCamCheckbox.checked = false;
+            autoCam = false;
+        }
+        cameraButtonDiv.appendChild(button)
+        if (name === 'Manual') {
+            button.id = 'manualCamButton';
+            button.title = 'Position with left/right click and scroll';
+        }
+    }
+
     leaderboardContainer.innerHTML = '';
 
     const eventNameDiv = document.createElement('h2');
@@ -398,7 +468,7 @@ function initLeaderboard() {
 }
 
 function initRace(msg) {
-    setCameraFunctionIndex(5); //TODO: more automatic camera changes
+    setCameraFunctionIndex(5); //TODO: line prob not necessary
     //The race object holds:
     // -The race data as it comes in from the server
     // -The state of what time slice we are viewing the race at, 
@@ -423,7 +493,7 @@ function initRace(msg) {
     race.trackDataToGameTrack = is200mTrack ? trackDataTo200mGameTrack : trackDataTo400mGameTrack;
     race.hurdles = msg.eventName.includes('Hurdles');
     race.laned = is200mTrack ? (msg.raceDistance <= 400) : (msg.raceDistance <= 400); //TODO: figure out which races for 200m track are unlaned
-    
+
     //TODO: add stagger to description from server
     if (is200mTrack) {
         if (msg.stagger) {
@@ -433,7 +503,7 @@ function initRace(msg) {
             if (race.raceDistance === 200) race.stagger = -1;
             else if (race.raceDistance === 300) race.stagger = -1;
             else if (race.raceDistance === 400) race.stagger = 2;
-            else if (race.raceDistance === 600) race.stagger = 2;
+            else if (race.raceDistance === 600) race.stagger = -1;
             else if (race.raceDistance === 800) race.stagger = 3;
             else if (race.raceDistance === 1500) race.stagger = 0;
             else if (race.eventName.includes('Mile')) race.stagger = 2;
@@ -478,11 +548,10 @@ function initRace(msg) {
         race.athletes[id] = athlete;
         race.athletesList.push(athlete);
     }
-
     initLeaderboard();
-
     //TODO: Test 200m track hurdles
-    if ((!is200mTrack) && race.hurdles) {
+    if (race.hurdles) {
+        allSpeedLines = true;
         let hurdleHeight, hurdle0, hurdleSpacing, hurdleCount;
         //TODO: slow down hurdle step
 
@@ -683,7 +752,7 @@ function initRace(msg) {
     }
     else if (race.laned) {
         //Laned Races
-
+        allSpeedLines = true;
         //laned races setTime
         //requires that time is in range [race.minTime, race.maxTime]
         race.setTime = (time, delta=0) => {
@@ -760,7 +829,7 @@ function initRace(msg) {
     }
     else if (!race.laned) {
         //Un-laned races
-
+        allSpeedLines = false;
         //unlaned setTime
         //requires that time is in range [race.minTime, race.maxTime]
         race.setTime = (time, delta=0) => {
@@ -777,7 +846,7 @@ function initRace(msg) {
 
                 if (athlete.dist < race.raceDistance) {
                     athlete.speed = amsg.speed;
-                    let posTheta = race.f(athlete.lane, amsg.pathDistance);
+                    let posTheta = race.f(1, amsg.pathDistance);
                     posTheta.p = race.trackDataToGameTrack(amsg.x, amsg.y);
                     athlete.posTheta = posTheta;
                     athlete.pose(delta);
@@ -910,6 +979,7 @@ function interpolateMsgs(time) {
 }
 
 function updateRace(msg) {
+    //TODO: detect bad messages more
     let badMSG = 0;
     for (let k in msg.athletes) {
         let a = msg.athletes[k];
@@ -918,7 +988,7 @@ function updateRace(msg) {
         }
     }
     if (badMSG > race.athletesList.length / 2) return;
-    
+
     let pmsg = race.msgs[race.msgs.length - 1];
     race.msgs.push(msg); 
     race.msgs.sort((a,b) => a.raceTime - b.raceTime);//TODO: insert into list instead of sorting

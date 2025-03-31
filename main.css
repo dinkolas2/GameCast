@@ -4,11 +4,12 @@ body {
 
     font-family: Arial, sans-serif;
     font-variant: small-caps;
+    color: rgb(222, 229, 238);
 }
 
 h2 {
     text-wrap: wrap;
-    color: rgb(222, 229, 238);
+    
     font-size: 12pt;
 }
 
@@ -20,6 +21,7 @@ h2 {
     padding: 3px;
     border-radius: 3px;
     text-align: center;
+    color: rgba(50, 50, 65, 1);
 }
 .triangle {
     width: 0px;
@@ -33,6 +35,11 @@ h2 {
     /* margin-top: -0.5px; */
 }
 
+.elementsContainer {
+    position: absolute;
+    left: 0;
+    top: 0;
+}
 /* Leaderboard container */
 .leaderboard {
     position: absolute;
@@ -48,7 +55,6 @@ h2 {
     font-size: 10pt;
     background-color: rgb(49, 49, 65, 0.5);
     border-radius: 2px;
-    color: rgb(222, 229, 238);
     margin: 3px;
 }
 .highlight {
@@ -84,4 +90,29 @@ h2 {
 }
 .athleteLabelOffset {
     transform: translate(0px, -20px);
+}
+
+
+.cameraButton {
+    background-color: brown;
+    border: none;
+    color: white;
+    padding: 5px 5px;
+    border-radius: 3px;
+    text-align: center;
+    display: inline-block;
+    font-size: 16px;
+    font: unset;
+    margin: 3px;
+}
+.cameraButton:hover {
+    background-color: aliceblue;
+}
+.cameraButtonDiv {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+}
+.label {
+    margin:3px;
 }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { race, athleteParent, matSkin, matSpeedLine, is200mTrack } from './init.js';
+import { race, athleteParent, matSkin, matSpeedLine, is200mTrack, allSpeedLines } from './init.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { Line2 } from 'three/addons/lines/Line2.js';
 
@@ -155,7 +155,9 @@ export class Athlete {
         this.labelObjectVisible = 3;
         this.labelObject.visible = true;
         this.rankEl.classList.add('highlight');
-        this.generateSpeedLine();
+        if (!allSpeedLines) {
+            this.generateSpeedLine(); //For highlighting single athlete
+        }
 
         for (let a of race.athletesList) {
             if (this !== a) {
@@ -193,7 +195,9 @@ export class Athlete {
                 this.unHighlight();
             }
             else {
-                this.generateSpeedLine();
+                if (!allSpeedLines) {
+                    this.generateSpeedLine(); //For highlighting single athlete
+                }
             }
         }
     }
@@ -246,9 +250,13 @@ export class Athlete {
         this.armature.rotation.set(0,phi,theta,'ZYX');
     }
     
-
+    //TODO: check for NaN values, make athlete inactive
     pose(delta) {
         this.updateLabel(delta);
+        if (allSpeedLines) {
+            this.generateSpeedLine(); //For highlighting all athletes
+        }
+        
         
         if (!race.laned && this.dist === 0) {
             this.speedPoints[0] = this.posTheta.p; //make sure start of speed lines is right before starting the race
@@ -365,9 +373,15 @@ export class Athlete {
         this.armature.rotation.set(0,phi,theta,'ZYX');
     }
 
+    //TODO: segment lines into 50m chunks so only deleting/remaking last 50m's
     generateSpeedLine() {
         let points = [];
         let maxSpeed = this.maxSpeed;
+        for (let a of race.athletesList) {
+            if (a.maxSpeed) {
+                maxSpeed = Math.max(maxSpeed, a.maxSpeed);
+            }
+        }
         let colors = [];
         let color = new THREE.Color();
         for (let d = 0; (d < this.speeds.length) && (d <= this.dist); d++) {

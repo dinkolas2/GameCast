@@ -8,8 +8,10 @@ export let cameraFunctionIndex = 0;
 let indexChanged = true;
 
 export function setCameraFunctionIndex(v) {
-    indexChanged = true;
-    cameraFunctionIndex = pmod(v, cameraFunctions.length);
+    if (cameraFunctionIndex !== v) {
+        indexChanged = true;
+        cameraFunctionIndex = pmod(v, cameraFunctions.length);
+    }
 }
 
 const tempV3_1 = new THREE.Vector3();
@@ -93,19 +95,9 @@ function setCameraManual() {
 
 //TRACKING camera behavior:
 // Position of camera is riding on a track that goes around the outside of 
-// the whole oval. Select first 4 athletes, average their distance in the race, 
-// and point the camera at lane 4.5 at that distance in the race.
-//
-// eh not great
+// the whole oval. Track first athlete framed on the right side of the frame, 
 function setCameraTracking() {
-    let sumDist = 0;
-    let count = Math.min(race.athletesList.length, 4);
-    for (let i = 0; i < count; i++) {
-        sumDist += race.athletesList[i].dist;
-    }
-
-    sumDist = sumDist / count;
-    let pt = race.f(4.5, sumDist);
+    let pt = race.f(1, race.athletesList[0].dist - 7);
     let p = pt.p;
 
     let newPos = new THREE.Vector3(p.x - 25 * Math.cos(pt.theta + 0.5), p.y - 25 * Math.sin(pt.theta + 0.5), 10);
@@ -117,7 +109,6 @@ function setCameraTracking() {
     else {
         camera.position.lerp(newPos, 0.005);
     }
-    //camera.position.set(p.x + 20, p.y - 10, 10);
     camera.lookAt(p.x, p.y, 1);
 
     sunLight.position.set(p.x + 2, p.y - 2, 5);
@@ -314,6 +305,7 @@ function setCameraFrameNFromView(n, cameraViewDirection, padding) {
     }
 
     //TODO: revisit left/right/top/bottom padding. Should this be in meters, pixels, etc?
+    //Currently it's in meters
     //Should do camera view offset to accomodate left leaderboard panel?
     xMin -= padding.left;
     yMin -= padding.bottom;

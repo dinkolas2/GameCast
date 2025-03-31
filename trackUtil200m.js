@@ -21,7 +21,7 @@ export function buildShortTrackGetPosThetaPhi(total, stagger) {
             p: new THREE.Vector3(
                 straightEndX + (total - dist),
                 straightStartY + straightLaneWidth*0.5 + (lane - 1) * (straightLaneWidth + laneLineWidth),
-                z
+                0
             ),
             theta: -Math.PI/2,
             phi: 0,
@@ -219,9 +219,14 @@ export function buildShortTrackGetPosThetaPhi(total, stagger) {
 // and the live fromRail and dist values.
 export function trackDataTo200mGameTrack(x,y) {
     //TODO: Raycast to model for z value?
+    // return new THREE.Vector3(
+    //     (x-centerX) * 1.05 + centerX,
+    //     (y-centerY + 16) * 0.85 + centerY,
+    //     0
+    // );
     return new THREE.Vector3(
         x,
-        y,
+        y + 20,
         0
     );
 }
